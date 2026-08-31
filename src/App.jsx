@@ -221,6 +221,41 @@ export default function BoticaApp() {
     if (adminPhonesReady && adminPhones === null) setAdminPhones([]);
   }, [adminPhonesReady, adminPhones]);
 
+  // Cuando alguien toca "Confirmar" en el correo de verificación, llega aquí
+  // con ?verify=TOKEN en la URL.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("verify");
+    if (!token) return;
+
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("email_verifications")
+          .select("*")
+          .eq("token", token)
+          .maybeSingle();
+        if (data) {
+          let existing = null;
+          try {
+            const raw = localStorage.getItem("botica:perfil-comprador");
+            existing = raw ? JSON.parse(raw) : null;
+          } catch {
+            existing = null;
+          }
+          saveProfile({ ...existing, name: data.name, email: data.email, emailVerified: true });
+          await supabase.from("email_verifications").delete().eq("token", token);
+        }
+      } catch {
+        // si algo falla, simplemente no se marca la sesión como confirmada
+      } finally {
+        params.delete("verify");
+        const newUrl = window.location.pathname + (params.toString() ? `?${params}` : "");
+        window.history.replaceState({}, "", newUrl);
+      }
+    })();
+  }, []);
+
   const [cart, setCart] = useState({});
   const [search, setSearch] = useState("");
   const [orderPlaced, setOrderPlaced] = useState(null);
@@ -492,11 +527,12 @@ function PasswordGate({ onClose, onSuccess }) {
 }
 
 function ProfileModal({ profile, profileReady, onClose, onSave, onLogout }) {
-  const [step, setStep] = useState("form"); // form | sent
+  const [step, setStep] = useState("form"); // form | sending | sent | error
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [prefilled, setPrefilled] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     if (profileReady && profile && !prefilled) {
@@ -508,6 +544,39 @@ function ProfileModal({ profile, profileReady, onClose, onSave, onLogout }) {
 
   const canSave = name.trim() && email.trim();
   const isLoggedIn = profileReady && profile?.emailVerified && !editing;
+
+  async function sendConfirmationEmail() {
+    setStep("sending");
+    setErrorMsg("");
+    try {
+      const token =
+        crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+      const { error: insertError } = await supabase
+        .from("email_verifications")
+        .insert({ token, name: name.trim(), email: email.trim().toLowerCase() });
+      if (insertError) throw insertError;
+
+      const response = await fetch("/api/send-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          token,
+          appUrl: window.location.origin,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || "No se pudo enviar el correo");
+      if (data?.skipped) throw new Error(data.reason || "El envío de correos no está configurado");
+
+      setStep("sent");
+    } catch (err) {
+      setErrorMsg(err.message || "Algo salió mal enviando el correo");
+      setStep("error");
+    }
+  }
 
   if (isLoggedIn) {
     return (
@@ -556,33 +625,45 @@ function ProfileModal({ profile, profileReady, onClose, onSave, onLogout }) {
         <div className="relative bg-[#F7F6F2] rounded-xl max-w-xs w-full p-5 shadow-xl">
           <div className="flex items-center justify-between mb-3">
             <div className="font-semibold flex items-center gap-1.5">
-              <Mail size={15} /> Confirma tu correo
+              <Mail size={15} /> Revisa tu correo
             </div>
             <button onClick={onClose} className="p-1 hover:bg-[#EDEAE1] rounded">
               <X size={16} />
             </button>
           </div>
-          <div className="border border-[#D8D3C7] rounded-lg bg-white p-4 mb-3">
-            <div className="text-[11px] text-[#8A8578] mb-2">Vista previa del correo enviado a {email}</div>
-            <div className="text-sm font-medium mb-1">Hola {name || "de nuevo"},</div>
-            <p className="text-sm text-[#1E2321] mb-3">
-              Para continuar, inicia sesión confirmando tu correo con el botón de abajo.
-            </p>
-            <button
-              onClick={() => {
-                setEditing(false);
-                onSave({ name: name.trim(), email: email.trim(), emailVerified: true });
-              }}
-              className="w-full py-2 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27]"
-            >
-              Continuar
-            </button>
+          <div className="border border-[#D8D3C7] rounded-lg bg-white p-4 mb-3 text-sm">
+            Te mandamos un correo a <strong>{email}</strong> con un botón para confirmar. Tócalo desde tu
+            correo para terminar de iniciar sesión.
           </div>
           <p className="text-[11px] text-[#8A8578]">
-            Nota: esta app no tiene servidor de correo propio, así que esto es una simulación del correo — no
-            llega nada a tu bandeja real. Para enviar correos de verdad se necesitaría conectar un servicio de
-            correo externo.
+            Si no lo ves en unos minutos, revisa la carpeta de spam. Puedes cerrar esta ventana mientras
+            tanto.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "error") {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+        <div className="relative bg-[#F7F6F2] rounded-xl max-w-xs w-full p-5 shadow-xl">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-semibold flex items-center gap-1.5 text-[#B3462C]">
+              <AlertTriangle size={15} /> No se pudo enviar
+            </div>
+            <button onClick={onClose} className="p-1 hover:bg-[#EDEAE1] rounded">
+              <X size={16} />
+            </button>
+          </div>
+          <p className="text-sm text-[#1E2321] mb-4">{errorMsg}</p>
+          <button
+            onClick={() => setStep("form")}
+            className="w-full py-2.5 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27]"
+          >
+            Volver a intentar
+          </button>
         </div>
       </div>
     );
@@ -626,11 +707,11 @@ function ProfileModal({ profile, profileReady, onClose, onSave, onLogout }) {
           </div>
         </div>
         <button
-          onClick={() => canSave && setStep("sent")}
-          disabled={!canSave}
+          onClick={() => canSave && sendConfirmationEmail()}
+          disabled={!canSave || step === "sending"}
           className="w-full mt-4 py-2.5 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27] disabled:opacity-40"
         >
-          Guardar
+          {step === "sending" ? "Enviando..." : "Guardar"}
         </button>
       </div>
     </div>
