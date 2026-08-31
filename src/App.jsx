@@ -197,6 +197,7 @@ export default function BoticaApp() {
   const [inventory, setInventory, invReady] = useSharedList("inventario");
   const [orders, setOrders, ordersReady] = useSharedList("pedidos");
   const [adminEmails, setAdminEmails, adminEmailsReady] = useSharedList("admin_emails");
+  const [adminPhones, setAdminPhones, adminPhonesReady] = useSharedList("admin_phones");
   const [profile, saveProfile, profileReady] = useProfile();
 
   function handleProtectedClick(targetView) {
@@ -216,6 +217,9 @@ export default function BoticaApp() {
   useEffect(() => {
     if (adminEmailsReady && adminEmails === null) setAdminEmails([]);
   }, [adminEmailsReady, adminEmails]);
+  useEffect(() => {
+    if (adminPhonesReady && adminPhones === null) setAdminPhones([]);
+  }, [adminPhonesReady, adminPhones]);
 
   const [cart, setCart] = useState({});
   const [search, setSearch] = useState("");
@@ -929,6 +933,12 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
   const [newProduct, setNewProduct] = useState({ name: "", unit: UNIT_TYPES[0], quantity: "", price: "" });
   const [importOpen, setImportOpen] = useState(false);
   const [newEmail, setNewEmail] = useState("");
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  function clearInventory() {
+    setInventory([]);
+    setShowClearConfirm(false);
+  }
 
   function addAdminEmail() {
     const email = newEmail.trim().toLowerCase();
@@ -987,7 +997,7 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
   return (
     <>
     <main className="max-w-5xl mx-auto px-5 py-6">
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-5">
         <div className="flex items-center gap-1 bg-[#EDEAE1] rounded-lg p-1 w-fit">
           <button
             onClick={() => setTab("inventario")}
@@ -1010,12 +1020,20 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
         </div>
         <div className="flex items-center gap-3">
           {tab === "inventario" && (
-            <button
-              onClick={() => setImportOpen(true)}
-              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-[#0F3A34] text-[#0F3A34] hover:bg-white"
-            >
-              <Upload size={14} /> Importar inventario
-            </button>
+            <>
+              <button
+                onClick={() => setImportOpen(true)}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-[#0F3A34] text-[#0F3A34] hover:bg-white"
+              >
+                <Upload size={14} /> Importar inventario
+              </button>
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-[#B3462C] text-[#B3462C] hover:bg-[#FBEAE4]"
+              >
+                <Trash2 size={14} /> Vaciar inventario
+              </button>
+            </>
           )}
           <button onClick={onLogout} className="text-[12px] text-[#8A8578] hover:text-[#B3462C]">
             Cerrar sesión
@@ -1029,8 +1047,8 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
             <SearchBar search={search} setSearch={setSearch} placeholder="Buscar en el inventario..." />
           </div>
 
-          <div className="border border-[#D8D3C7] rounded-xl bg-white overflow-hidden mb-6">
-            <table className="w-full text-sm">
+          <div className="border border-[#D8D3C7] rounded-xl bg-white overflow-x-auto mb-6">
+            <table className="w-full text-sm min-w-[560px]">
               <thead>
                 <tr className="text-left text-[12px] text-[#8A8578] border-b border-[#D8D3C7]">
                   <th className="px-4 py-2.5 font-medium">Medicina</th>
@@ -1078,7 +1096,7 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
                             currency(p.price)
                           )}
                         </td>
-                        <td className="px-4 py-2.5 text-right">
+                        <td className="px-4 py-2.5 text-right whitespace-nowrap">
                           {isEditing ? (
                             <button onClick={() => saveEdit(p.id)} className="p-1.5 rounded hover:bg-[#EDEAE1] text-[#0F3A34]">
                               <Check size={15} />
@@ -1220,6 +1238,36 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
     </main>
 
     {importOpen && <ImportWordModal onClose={() => setImportOpen(false)} onApply={applyImport} />}
+
+    {showClearConfirm && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="absolute inset-0 bg-black/40" onClick={() => setShowClearConfirm(false)} />
+        <div className="relative bg-[#F7F6F2] rounded-xl max-w-xs w-full p-5 shadow-xl">
+          <div className="flex items-center gap-2 mb-3 text-[#B3462C]">
+            <AlertTriangle size={18} />
+            <div className="font-semibold">Vaciar inventario</div>
+          </div>
+          <p className="text-sm text-[#1E2321] mb-4">
+            Esto va a borrar las {fullList.length} medicina(s) que tienes cargadas ahora mismo. No se puede
+            deshacer. Los pedidos ya hechos no se ven afectados.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowClearConfirm(false)}
+              className="flex-1 py-2 rounded-lg border border-[#D8D3C7] text-sm hover:bg-white"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={clearInventory}
+              className="flex-1 py-2 rounded-lg bg-[#B3462C] text-white text-sm font-medium hover:bg-[#96371F]"
+            >
+              Sí, borrar todo
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }
