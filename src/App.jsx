@@ -321,7 +321,7 @@ export default function BoticaApp() {
                 view === "comprador" ? "bg-[#F7F6F2] text-[#0F3A34]" : "text-[#B9CFC8] hover:text-white"
               }`}
             >
-              Comprador
+              Inventario
             </button>
             <button
               onClick={() => setView("carrito")}
@@ -737,7 +737,7 @@ function CartView({ items, total, onChangeQty, onRemove, onBackToShop, onCheckou
 
       {items.length === 0 ? (
         <div className="text-sm text-[#8A8578] text-center py-16 border border-[#D8D3C7] rounded-xl bg-white">
-          Aún no agregas medicinas. Ve a la pestaña Comprador para empezar.
+          Aún no agregas medicinas. Ve a la pestaña Inventario para empezar.
         </div>
       ) : (
         <div className="space-y-3 mb-6">
