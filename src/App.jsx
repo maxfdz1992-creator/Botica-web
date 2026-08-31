@@ -466,7 +466,10 @@ export default function BoticaApp() {
       <header className="sticky top-0 z-30 border-b border-[#D8D3C7] bg-[#0F3A34] text-[#F7F6F2]">
         <div className="max-w-5xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="flex items-center gap-2.5 text-left"
+            >
               <div className="w-8 h-8 rounded-md bg-[#E8846B] flex items-center justify-center shrink-0">
                 <Package size={18} className="text-[#0F3A34]" />
               </div>
@@ -474,7 +477,7 @@ export default function BoticaApp() {
                 <div className="text-[15px] leading-tight font-semibold">Botica</div>
                 <div className="text-[11px] leading-tight text-[#B9CFC8]">Inventario y ventas</div>
               </div>
-            </div>
+            </button>
             <button
               onClick={() => setShowProfileModal(true)}
               className="w-9 h-9 rounded-full bg-[#0B2C27] flex items-center justify-center hover:bg-[#123f38] transition-colors shrink-0"
