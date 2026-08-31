@@ -250,6 +250,20 @@ export default function BoticaApp() {
     supabase.from("email_verifications").delete().eq("token", data.token || pendingToken).then(() => {});
   }
 
+  async function checkPendingVerificationNow() {
+    if (!pendingToken) return false;
+    const { data } = await supabase
+      .from("email_verifications")
+      .select("*")
+      .eq("token", pendingToken)
+      .maybeSingle();
+    if (data?.verified) {
+      finishLocalVerification({ ...data, token: pendingToken });
+      return true;
+    }
+    return false;
+  }
+
   // Caso A: este mismo navegador recibió el link "?verify=TOKEN" (por ejemplo,
   // si se abre desde el mismo Safari donde ya tenías la app abierta).
   useEffect(() => {
@@ -289,19 +303,30 @@ export default function BoticaApp() {
 
   // Caso B (el más común en celular): el botón del correo se abrió en Safari
   // normal, aparte de esta app instalada. Aquí nos quedamos escuchando en
-  // tiempo real hasta que ese otro lado marque el token como confirmado.
+  // tiempo real, y ADEMÁS volvemos a preguntar cada vez que esta app regresa
+  // a primer plano — en el celular, la conexión en vivo se corta cuando la
+  // app pasa a segundo plano (por ejemplo, al abrir Correo) y no siempre se
+  // reconecta sola.
   useEffect(() => {
     if (!pendingToken) return;
     let cancelled = false;
 
-    (async () => {
+    async function checkNow() {
       const { data } = await supabase
         .from("email_verifications")
         .select("*")
         .eq("token", pendingToken)
         .maybeSingle();
       if (!cancelled && data?.verified) finishLocalVerification({ ...data, token: pendingToken });
-    })();
+    }
+
+    checkNow();
+
+    function handleForeground() {
+      if (document.visibilityState === "visible") checkNow();
+    }
+    document.addEventListener("visibilitychange", handleForeground);
+    window.addEventListener("focus", handleForeground);
 
     const channel = supabase
       .channel(`email_verifications_${pendingToken}`)
@@ -316,6 +341,8 @@ export default function BoticaApp() {
 
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", handleForeground);
+      window.removeEventListener("focus", handleForeground);
       supabase.removeChannel(channel);
     };
   }, [pendingToken]);
@@ -572,6 +599,7 @@ export default function BoticaApp() {
           }}
           onLogout={() => saveProfile(null)}
           onVerificationSent={setPendingToken}
+          onCheckNow={checkPendingVerificationNow}
         />
       )}
     </div>
@@ -625,7 +653,57 @@ function PasswordGate({ onClose, onSuccess }) {
   );
 }
 
-function ProfileModal({ profile, profileReady, onClose, onSave, onLogout, onVerificationSent }) {
+function SentScreen({ email, onClose, onCheckNow }) {
+  const [checking, setChecking] = useState(false);
+  const [notYet, setNotYet] = useState(false);
+
+  async function handleCheckNow() {
+    setChecking(true);
+    setNotYet(false);
+    try {
+      const confirmed = await onCheckNow?.();
+      if (!confirmed) setNotYet(true);
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-[#F7F6F2] rounded-xl max-w-xs w-full p-5 shadow-xl">
+        <div className="flex items-center justify-between mb-3">
+          <div className="font-semibold flex items-center gap-1.5">
+            <Mail size={15} /> Revisa tu correo
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-[#EDEAE1] rounded">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="border border-[#D8D3C7] rounded-lg bg-white p-4 mb-3 text-sm">
+          Te mandamos un correo a <strong>{email}</strong> con un botón para confirmar. Tócalo desde tu
+          correo — normalmente esta app detecta la confirmación sola.
+        </div>
+        <button
+          onClick={handleCheckNow}
+          disabled={checking}
+          className="w-full py-2.5 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27] disabled:opacity-50 mb-2"
+        >
+          {checking ? "Revisando..." : "Ya confirmé, revisar ahora"}
+        </button>
+        {notYet && (
+          <p className="text-[12px] text-[#B3462C] mb-2">
+            Todavía no vemos la confirmación. Si ya tocaste el botón del correo, espera unos segundos y
+            vuelve a intentar.
+          </p>
+        )}
+        <p className="text-[11px] text-[#8A8578]">Si no lo ves en unos minutos, revisa la carpeta de spam.</p>
+      </div>
+    </div>
+  );
+}
+
+function ProfileModal({ profile, profileReady, onClose, onSave, onLogout, onVerificationSent, onCheckNow }) {
   const [step, setStep] = useState("form"); // form | sending | sent | error
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -730,28 +808,7 @@ function ProfileModal({ profile, profileReady, onClose, onSave, onLogout, onVeri
 
   if (step === "sent") {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-        <div className="relative bg-[#F7F6F2] rounded-xl max-w-xs w-full p-5 shadow-xl">
-          <div className="flex items-center justify-between mb-3">
-            <div className="font-semibold flex items-center gap-1.5">
-              <Mail size={15} /> Revisa tu correo
-            </div>
-            <button onClick={onClose} className="p-1 hover:bg-[#EDEAE1] rounded">
-              <X size={16} />
-            </button>
-          </div>
-          <div className="border border-[#D8D3C7] rounded-lg bg-white p-4 mb-3 text-sm">
-            Te mandamos un correo a <strong>{email}</strong> con un botón para confirmar. Tócalo desde tu
-            correo — cuando lo hagas, esta app va a detectar la confirmación sola, sin que tengas que
-            regresar aquí manualmente.
-          </div>
-          <p className="text-[11px] text-[#8A8578]">
-            Si no lo ves en unos minutos, revisa la carpeta de spam. Puedes cerrar esta ventana mientras
-            tanto, se va a actualizar sola cuando confirmes.
-          </p>
-        </div>
-      </div>
+      <SentScreen email={email} onClose={onClose} onCheckNow={onCheckNow} />
     );
   }
 
