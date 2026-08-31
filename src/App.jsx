@@ -1070,6 +1070,8 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
 
   const [cpSuggestions, setCpSuggestions] = useState([]);
   const [coloniaOptions, setColoniaOptions] = useState([]);
+  const [municipioOptions, setMunicipioOptions] = useState([]);
+  const [estadoOptions, setEstadoOptions] = useState([]);
   const [cpStatus, setCpStatus] = useState("idle"); // idle | checking | verified | notfound
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -1085,6 +1087,8 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
       setMunicipio(profile.municipio || "");
       if (profile.cp && profile.colonia) {
         setColoniaOptions([profile.colonia]);
+        if (profile.municipio) setMunicipioOptions([profile.municipio]);
+        if (profile.estado) setEstadoOptions([profile.estado]);
         setCpStatus("verified");
       }
       setPrefilled(true);
@@ -1125,10 +1129,14 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
 
   function applyCpMatch(cpValue, records) {
     const uniqueColonias = [...new Set(records.map((r) => r.colonia).filter(Boolean))];
+    const uniqueMunicipios = [...new Set(records.map((r) => r.municipio).filter(Boolean))];
+    const uniqueEstados = [...new Set(records.map((r) => r.estado).filter(Boolean))];
     setColoniaOptions(uniqueColonias);
-    setEstado(records[0].estado || "");
-    setMunicipio(records[0].municipio || "");
+    setMunicipioOptions(uniqueMunicipios);
+    setEstadoOptions(uniqueEstados);
     setColonia((prev) => (uniqueColonias.includes(prev) ? prev : uniqueColonias[0] || ""));
+    setMunicipio((prev) => (uniqueMunicipios.includes(prev) ? prev : uniqueMunicipios[0] || ""));
+    setEstado((prev) => (uniqueEstados.includes(prev) ? prev : uniqueEstados[0] || ""));
     setCpStatus("verified");
     setShowSuggestions(false);
   }
@@ -1245,6 +1253,8 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
               setShowSuggestions(true);
               setCpStatus("idle");
               setColoniaOptions([]);
+              setMunicipioOptions([]);
+              setEstadoOptions([]);
             }}
             onFocus={() => setShowSuggestions(true)}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
@@ -1305,21 +1315,49 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-[12px] text-[#8A8578] block mb-1">Municipio</label>
-            <input
-              value={municipio}
-              onChange={(e) => setMunicipio(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
-              placeholder="Municipio"
-            />
+            {municipioOptions.length > 0 ? (
+              <select
+                value={municipio}
+                onChange={(e) => setMunicipio(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+              >
+                {municipioOptions.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={municipio}
+                onChange={(e) => setMunicipio(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+                placeholder="Escribe primero el código postal"
+              />
+            )}
           </div>
           <div>
             <label className="text-[12px] text-[#8A8578] block mb-1">Estado</label>
-            <input
-              value={estado}
-              onChange={(e) => setEstado(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
-              placeholder="Estado"
-            />
+            {estadoOptions.length > 0 ? (
+              <select
+                value={estado}
+                onChange={(e) => setEstado(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+              >
+                {estadoOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={estado}
+                onChange={(e) => setEstado(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+                placeholder="Escribe primero el código postal"
+              />
+            )}
           </div>
         </div>
 
