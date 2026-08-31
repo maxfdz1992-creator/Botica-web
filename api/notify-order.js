@@ -25,38 +25,4 @@ export default async function handler(req, res) {
 
     const text = [
       `Nuevo pedido de ${order.buyer?.name || "cliente"}`,
-      `Correo: ${order.buyer?.email || "-"}`,
-      `Teléfono: ${order.buyer?.phone || "-"}`,
-      `Dirección: ${order.buyer?.address || "-"}`,
-      "",
-      "Productos:",
-      itemsList,
-      "",
-      `Total: $${Number(order.total || 0).toFixed(2)}`,
-    ].join("\n");
-
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: "Botica <onboarding@resend.dev>",
-        to: adminEmails,
-        ...(order.buyer?.email ? { reply_to: order.buyer.email } : {}),
-        subject: `Nuevo pedido - ${order.buyer?.name || "cliente"}`,
-        text,
-      }),
-    });
-
-    if (!response.ok) {
-      const detail = await response.text();
-      return res.status(502).json({ error: "Resend rechazó el envío", detail });
-    }
-
-    return res.status(200).json({ ok: true });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-}
+      `Correo: ${order.
