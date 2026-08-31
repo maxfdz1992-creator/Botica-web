@@ -1074,6 +1074,8 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
   const [estadoOptions, setEstadoOptions] = useState([]);
   const [cpStatus, setCpStatus] = useState("idle"); // idle | checking | verified | notfound
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [streetSuggestions, setStreetSuggestions] = useState([]);
+  const [showStreetSuggestions, setShowStreetSuggestions] = useState(false);
 
   useEffect(() => {
     if (profileReady && profile && !prefilled) {
@@ -1166,6 +1168,33 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
     return list.slice(0, 8);
   }, [cpSuggestions]);
 
+  // Sugerencias de calle (OpenStreetMap) — apoyo, no verificación oficial.
+  useEffect(() => {
+    if (streetAddress.trim().length < 3) {
+      setStreetSuggestions([]);
+      return;
+    }
+    const context = [colonia, municipio, estado].filter(Boolean).join(", ");
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/street-suggest?q=${encodeURIComponent(streetAddress)}&context=${encodeURIComponent(context)}`
+        );
+        const data = await res.json();
+        setStreetSuggestions(data.results || []);
+      } catch {
+        setStreetSuggestions([]);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streetAddress, colonia, municipio, estado]);
+
+  function pickStreetSuggestion(s) {
+    setStreetAddress(s.houseNumber ? `${s.street} ${s.houseNumber}` : s.street);
+    setShowStreetSuggestions(false);
+  }
+
   const canSubmit =
     name.trim() && phone.trim() && streetAddress.trim() && cp.length === 5 && colonia.trim() && estado.trim() && municipio.trim();
 
@@ -1233,14 +1262,37 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
           </div>
         </div>
 
-        <div>
+        <div className="relative">
           <label className="text-[12px] text-[#8A8578] block mb-1">Dirección y número</label>
           <input
             value={streetAddress}
-            onChange={(e) => setStreetAddress(e.target.value)}
+            onChange={(e) => {
+              setStreetAddress(e.target.value);
+              setShowStreetSuggestions(true);
+            }}
+            onFocus={() => setShowStreetSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowStreetSuggestions(false), 150)}
             className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
             placeholder="Calle y número"
           />
+          {showStreetSuggestions && streetSuggestions.length > 0 && (
+            <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#D8D3C7] rounded-lg shadow-lg max-h-52 overflow-y-auto">
+              {streetSuggestions.map((s, i) => (
+                <button
+                  key={`${s.street}-${i}`}
+                  type="button"
+                  onClick={() => pickStreetSuggestion(s)}
+                  className="block w-full text-left px-3 py-2 text-sm hover:bg-[#F7F6F2] border-b border-[#EDEAE1] last:border-0"
+                >
+                  {s.street}
+                  {s.neighbourhood ? <span className="text-[#8A8578]"> — {s.neighbourhood}</span> : null}
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="text-[10px] text-[#8A8578] mt-1">
+            Sugerencias de OpenStreetMap — revisa que el número esté correcto, no siempre viene incluido.
+          </p>
         </div>
 
         <div className="relative">
