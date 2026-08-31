@@ -11,8 +11,6 @@ export default async function handler(req, res) {
     const { order, adminEmails } = req.body || {};
 
     if (!order || !Array.isArray(adminEmails) || adminEmails.length === 0) {
-      // No hay a quién avisar, o falta información del pedido: no es un
-      // error grave, simplemente no se manda nada.
       return res.status(200).json({ skipped: true, reason: "Sin correos administrativos configurados" });
     }
 
@@ -27,6 +25,7 @@ export default async function handler(req, res) {
 
     const text = [
       `Nuevo pedido de ${order.buyer?.name || "cliente"}`,
+      `Correo: ${order.buyer?.email || "-"}`,
       `Teléfono: ${order.buyer?.phone || "-"}`,
       `Dirección: ${order.buyer?.address || "-"}`,
       "",
@@ -45,6 +44,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         from: "Botica <onboarding@resend.dev>",
         to: adminEmails,
+        ...(order.buyer?.email ? { reply_to: order.buyer.email } : {}),
         subject: `Nuevo pedido - ${order.buyer?.name || "cliente"}`,
         text,
       }),
