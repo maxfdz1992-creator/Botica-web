@@ -1076,6 +1076,9 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [streetSuggestions, setStreetSuggestions] = useState([]);
   const [showStreetSuggestions, setShowStreetSuggestions] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [lat, setLat] = useState(null);
+  const [lng, setLng] = useState(null);
 
   useEffect(() => {
     if (profileReady && profile && !prefilled) {
@@ -1195,6 +1198,17 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
     setShowStreetSuggestions(false);
   }
 
+  function handleMapConfirm(addr, pickedLat, pickedLng) {
+    setShowMapPicker(false);
+    setLat(pickedLat);
+    setLng(pickedLng);
+    if (addr.street) setStreetAddress(`${addr.street}${addr.houseNumber ? " " + addr.houseNumber : ""}`.trim());
+    if (addr.colonia) setColonia(addr.colonia);
+    if (addr.municipio) setMunicipio(addr.municipio);
+    if (addr.estado) setEstado(addr.estado);
+    if (addr.cp) setCp(addr.cp); // esto dispara la verificación oficial del CP sola
+  }
+
   const canSubmit =
     name.trim() && phone.trim() && streetAddress.trim() && cp.length === 5 && colonia.trim() && estado.trim() && municipio.trim();
 
@@ -1202,7 +1216,7 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
     if (!canSubmit) return;
     const fullAddress = `${streetAddress}, ${colonia}, ${municipio}, ${estado}, CP ${cp}`;
     onConfirm(
-      { name, email, phone, address: fullAddress, streetAddress, cp, colonia, estado, municipio },
+      { name, email, phone, address: fullAddress, streetAddress, cp, colonia, estado, municipio, lat, lng },
       saveProfile
     );
   }
@@ -1293,6 +1307,18 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
           <p className="text-[10px] text-[#8A8578] mt-1">
             Sugerencias de OpenStreetMap — revisa que el número esté correcto, no siempre viene incluido.
           </p>
+          <button
+            type="button"
+            onClick={() => setShowMapPicker(true)}
+            className="text-[12px] text-[#0F3A34] underline mt-1"
+          >
+            ¿No encuentras tu dirección? Márcala en un mapa
+          </button>
+          {lat && lng && (
+            <p className="text-[11px] text-[#8A8578] mt-1 flex items-center gap-1">
+              <Check size={11} className="text-[#0F3A34]" /> Ubicación marcada en el mapa
+            </p>
+          )}
         </div>
 
         <div className="relative">
@@ -1435,7 +1461,127 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
       >
         Levantar pedido
       </button>
+
+      {showMapPicker && (
+        <MapPickerModal onClose={() => setShowMapPicker(false)} onConfirm={handleMapConfirm} />
+      )}
     </main>
+  );
+}
+
+function MapPickerModal({ onClose, onConfirm }) {
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
+  const [Lmod, setLmod] = useState(null);
+  const [marker, setMarker] = useState(null);
+  const [locating, setLocating] = useState(true);
+  const [loadingAddr, setLoadingAddr] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    import("leaflet").then((mod) => {
+      if (!cancelled) setLmod(mod.default || mod);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!Lmod || !mapContainerRef.current || mapRef.current) return;
+    const L = Lmod;
+
+    const map = L.map(mapContainerRef.current).setView([23.6345, -102.5528], 5);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap",
+      maxZoom: 19,
+    }).addTo(map);
+
+    function placeMarker(lat, lng) {
+      setMarker({ lat, lng });
+      if (markerRef.current) {
+        markerRef.current.setLatLng([lat, lng]);
+      } else {
+        markerRef.current = L.circleMarker([lat, lng], {
+          radius: 9,
+          color: "#0F3A34",
+          weight: 3,
+          fillColor: "#E8846B",
+          fillOpacity: 1,
+        }).addTo(map);
+      }
+    }
+
+    map.on("click", (e) => placeMarker(e.latlng.lat, e.latlng.lng));
+    mapRef.current = map;
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          map.setView([latitude, longitude], 16);
+          placeMarker(latitude, longitude);
+          setLocating(false);
+        },
+        () => setLocating(false),
+        { timeout: 6000 }
+      );
+    } else {
+      setLocating(false);
+    }
+
+    setTimeout(() => map.invalidateSize(), 200);
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+    };
+  }, [Lmod]);
+
+  async function handleConfirm() {
+    if (!marker) return;
+    setLoadingAddr(true);
+    try {
+      const res = await fetch(`/api/reverse-geocode?lat=${marker.lat}&lon=${marker.lng}`);
+      const data = await res.json();
+      onConfirm(data.result || {}, marker.lat, marker.lng);
+    } catch {
+      onConfirm({}, marker.lat, marker.lng);
+    } finally {
+      setLoadingAddr(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-[#F7F6F2] rounded-xl w-full max-w-md shadow-xl overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-[#D8D3C7]">
+          <div className="font-semibold text-sm flex items-center gap-1.5">
+            <MapPin size={15} /> Marca tu ubicación
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-[#EDEAE1] rounded">
+            <X size={16} />
+          </button>
+        </div>
+        <p className="px-4 pt-3 text-[12px] text-[#8A8578]">
+          Toca en el mapa el punto exacto donde quieres recibir tu pedido.
+        </p>
+        <div ref={mapContainerRef} style={{ height: 320, width: "100%" }} className="mt-2 bg-[#EDEAE1]" />
+        <div className="p-4">
+          {locating && <div className="text-[12px] text-[#8A8578] mb-2">Buscando tu ubicación actual...</div>}
+          <button
+            onClick={handleConfirm}
+            disabled={!marker || loadingAddr}
+            className="w-full py-2.5 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27] disabled:opacity-40"
+          >
+            {loadingAddr ? "Buscando dirección..." : marker ? "Usar esta ubicación" : "Toca el mapa primero"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1754,6 +1900,16 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
                     <div className="text-[12px] text-[#8A8578] flex items-center gap-1 mt-0.5">
                       <MapPin size={11} /> {o.buyer.address}
                     </div>
+                    {o.buyer.lat && o.buyer.lng && (
+                      <a
+                        href={`https://www.google.com/maps?q=${o.buyer.lat},${o.buyer.lng}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-[#0F3A34] underline"
+                      >
+                        Ver ubicación marcada en el mapa
+                      </a>
+                    )}
                   </div>
                   <div className="text-right">
                     <div className="font-semibold text-sm">{currency(o.total)}</div>
