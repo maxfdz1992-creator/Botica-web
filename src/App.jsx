@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "./supabaseClient";
-import { Search, Plus, Minus, Trash2, ShoppingCart, X, Package, ClipboardList, Pencil, Check, MapPin, Lock, Upload, AlertTriangle, FileText, FileSpreadsheet, TrendingUp, Calendar, User, ArrowLeft, Mail, CreditCard } from "lucide-react";
+import { Search, Plus, Minus, Trash2, ShoppingCart, X, Package, ClipboardList, Pencil, Check, MapPin, Lock, Upload, AlertTriangle, FileText, FileSpreadsheet, TrendingUp, Calendar, User, ArrowLeft, Mail } from "lucide-react";
 
 const UNIT_TYPES = ["tableta", "cápsula", "frasco", "caja", "ampolleta", "sobre", "tubo"];
 const ADMIN_PASSWORD = "botica2026";
@@ -196,6 +196,7 @@ export default function BoticaApp() {
   const [pendingView, setPendingView] = useState(null);
   const [inventory, setInventory, invReady] = useSharedList("inventario");
   const [orders, setOrders, ordersReady] = useSharedList("pedidos");
+  const [adminEmails, setAdminEmails, adminEmailsReady] = useSharedList("admin_emails");
   const [profile, saveProfile, profileReady] = useProfile();
 
   function handleProtectedClick(targetView) {
@@ -212,6 +213,9 @@ export default function BoticaApp() {
   useEffect(() => {
     if (ordersReady && orders === null) setOrders([]);
   }, [ordersReady, orders]);
+  useEffect(() => {
+    if (adminEmailsReady && adminEmails === null) setAdminEmails([]);
+  }, [adminEmailsReady, adminEmails]);
 
   const [cart, setCart] = useState({});
   const [search, setSearch] = useState("");
@@ -270,10 +274,18 @@ export default function BoticaApp() {
         return bought ? { ...p, quantity: p.quantity - bought } : p;
       })
     );
-    if (shouldSaveProfile) saveProfile(buyer);
+    if (shouldSaveProfile) saveProfile({ ...profile, ...buyer });
     setCart({});
     setView("comprador");
     setOrderPlaced(order);
+
+    // Aviso a los correos administrativos. Si falla (o no hay backend de
+    // correo configurado), el pedido ya quedó guardado de todos modos.
+    fetch("/api/notify-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order, adminEmails: adminEmails || [] }),
+    }).catch(() => {});
   }
 
   return (
@@ -380,6 +392,8 @@ export default function BoticaApp() {
           setSearch={setSearch}
           setInventory={setInventory}
           orders={orders || []}
+          adminEmails={adminEmails || []}
+          setAdminEmails={setAdminEmails}
           onLogout={() => {
             setAdminUnlocked(false);
             setView("comprador");
@@ -419,6 +433,7 @@ export default function BoticaApp() {
             saveProfile({ ...profile, ...data });
             setShowProfileModal(false);
           }}
+          onLogout={() => saveProfile(null)}
         />
       )}
     </div>
@@ -472,11 +487,12 @@ function PasswordGate({ onClose, onSuccess }) {
   );
 }
 
-function ProfileModal({ profile, profileReady, onClose, onSave }) {
+function ProfileModal({ profile, profileReady, onClose, onSave, onLogout }) {
   const [step, setStep] = useState("form"); // form | sent
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [prefilled, setPrefilled] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     if (profileReady && profile && !prefilled) {
@@ -487,6 +503,47 @@ function ProfileModal({ profile, profileReady, onClose, onSave }) {
   }, [profileReady, profile, prefilled]);
 
   const canSave = name.trim() && email.trim();
+  const isLoggedIn = profileReady && profile?.emailVerified && !editing;
+
+  if (isLoggedIn) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+        <div className="relative bg-[#F7F6F2] rounded-xl max-w-xs w-full p-5 shadow-xl">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-semibold flex items-center gap-1.5">
+              <User size={15} /> Mi perfil
+            </div>
+            <button onClick={onClose} className="p-1 hover:bg-[#EDEAE1] rounded">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="border border-[#D8D3C7] rounded-lg bg-white p-4 mb-3">
+            <div className="text-[11px] text-[#8A8578] mb-1">Sesión iniciada como</div>
+            <div className="text-sm font-medium">{profile.name}</div>
+            <div className="text-[12px] text-[#8A8578]">{profile.email}</div>
+          </div>
+          <p className="text-[12px] text-[#8A8578] mb-4">
+            Tus próximas compras ya usan estos datos automáticamente.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setEditing(true)}
+              className="flex-1 py-2 rounded-lg border border-[#D8D3C7] text-sm hover:bg-white"
+            >
+              Editar
+            </button>
+            <button
+              onClick={onLogout}
+              className="flex-1 py-2 rounded-lg border border-[#D8D3C7] text-sm text-[#B3462C] hover:bg-white"
+            >
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (step === "sent") {
     return (
@@ -508,7 +565,10 @@ function ProfileModal({ profile, profileReady, onClose, onSave }) {
               Para continuar, inicia sesión confirmando tu correo con el botón de abajo.
             </p>
             <button
-              onClick={() => onSave({ name: name.trim(), email: email.trim(), emailVerified: true })}
+              onClick={() => {
+                setEditing(false);
+                onSave({ name: name.trim(), email: email.trim(), emailVerified: true });
+              }}
               className="w-full py-2 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27]"
             >
               Continuar
@@ -724,7 +784,7 @@ function CartView({ items, total, onChangeQty, onRemove, onBackToShop, onCheckou
           disabled={items.length === 0}
           className="w-full py-2.5 rounded-lg bg-[#E8846B] text-[#0F3A34] font-medium text-sm hover:bg-[#DD7357] disabled:opacity-40"
         >
-          Comprar
+          Levantar pedido
         </button>
       </div>
     </main>
@@ -738,10 +798,6 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
   const [saveProfile, setSaveProfile] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
 
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardExpiry, setCardExpiry] = useState("");
-  const [cardCvv, setCardCvv] = useState("");
-
   useEffect(() => {
     if (profileReady && profile && !prefilled) {
       setName(profile.name || "");
@@ -753,37 +809,15 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
 
   const canSubmit = name.trim() && phone.trim() && address.trim();
 
-  const cardDigits = cardNumber.replace(/\D/g, "");
-  const cardValid = cardDigits.length >= 13 && cardDigits.length <= 19;
-  const expiryValid = /^(0[1-9]|1[0-2])\/\d{2}$/.test(cardExpiry);
-  const cvvValid = /^\d{3,4}$/.test(cardCvv);
-  const canPay = canSubmit && cardValid && expiryValid && cvvValid;
-
-  function formatCardNumber(value) {
-    return value
-      .replace(/\D/g, "")
-      .slice(0, 19)
-      .replace(/(.{4})/g, "$1 ")
-      .trim();
-  }
-
-  function formatExpiry(value) {
-    const digits = value.replace(/\D/g, "").slice(0, 4);
-    if (digits.length <= 2) return digits;
-    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-  }
-
-  function handlePay() {
-    if (!canPay) return;
-    // El número de tarjeta, vencimiento y CVV solo viven en este componente
-    // para simular el cobro y nunca se incluyen en el pedido ni se guardan.
+  function handlePlaceOrder() {
+    if (!canSubmit) return;
     onConfirm({ name, phone, address }, saveProfile);
   }
 
   return (
     <main className="max-w-md mx-auto px-5 py-6 pb-28">
       <div className="flex items-center justify-between mb-5">
-        <div className="font-semibold text-[15px]">Datos de entrega y pago</div>
+        <div className="font-semibold text-[15px]">Datos de entrega</div>
         <button onClick={onBack} className="text-sm text-[#0F3A34] hover:underline flex items-center gap-1">
           <ArrowLeft size={14} /> Volver al carrito
         </button>
@@ -839,59 +873,16 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
         </label>
       </div>
 
-      <div className="border border-[#D8D3C7] rounded-xl bg-white p-4 space-y-3 mb-4">
-        <div className="text-sm font-medium flex items-center gap-1.5">
-          <CreditCard size={15} /> Pago (simulado)
-        </div>
-        <div>
-          <label className="text-[12px] text-[#8A8578] block mb-1">Número de tarjeta</label>
-          <input
-            inputMode="numeric"
-            value={cardNumber}
-            onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-            placeholder="4242 4242 4242 4242"
-            className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
-          />
-        </div>
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="text-[12px] text-[#8A8578] block mb-1">Vencimiento</label>
-            <input
-              inputMode="numeric"
-              value={cardExpiry}
-              onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
-              placeholder="MM/AA"
-              className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
-            />
-          </div>
-          <div className="w-24">
-            <label className="text-[12px] text-[#8A8578] block mb-1">CVV</label>
-            <input
-              inputMode="numeric"
-              type="password"
-              value={cardCvv}
-              onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
-              placeholder="123"
-              className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
-            />
-          </div>
-        </div>
-        <div className="flex items-start gap-2 bg-[#F7F6F2] border border-[#D8D3C7] rounded-lg p-2.5 text-[11px] text-[#8A8578]">
-          <AlertTriangle size={13} className="shrink-0 mt-0.5" />
-          Esto es una simulación: no se realiza ningún cobro real y estos datos no se guardan en ningún lado.
-        </div>
-      </div>
-
       <div className="flex items-center justify-between mb-3 text-sm">
         <span className="text-[#8A8578]">{items.length} producto(s)</span>
         <span className="font-semibold">{currency(total)}</span>
       </div>
       <button
-        onClick={handlePay}
-        disabled={!canPay}
+        onClick={handlePlaceOrder}
+        disabled={!canSubmit}
         className="w-full py-2.5 rounded-lg bg-[#0F3A34] text-white font-medium text-sm hover:bg-[#0B2C27] disabled:opacity-40"
       >
-        Simular pago y confirmar pedido
+        Levantar pedido
       </button>
     </main>
   );
@@ -917,12 +908,25 @@ function OrderConfirmed({ order, onClose }) {
   );
 }
 
-function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory, orders, onLogout }) {
+function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory, orders, adminEmails, setAdminEmails, onLogout }) {
   const [tab, setTab] = useState("inventario");
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState({});
   const [newProduct, setNewProduct] = useState({ name: "", unit: UNIT_TYPES[0], quantity: "", price: "" });
   const [importOpen, setImportOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+
+  function addAdminEmail() {
+    const email = newEmail.trim().toLowerCase();
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) return;
+    if (adminEmails.includes(email)) return;
+    setAdminEmails([...adminEmails, email]);
+    setNewEmail("");
+  }
+
+  function removeAdminEmail(email) {
+    setAdminEmails(adminEmails.filter((e) => e !== email));
+  }
 
   function startEdit(p) {
     setEditingId(p.id);
@@ -982,6 +986,12 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
             className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md ${tab === "pedidos" ? "bg-white shadow-sm" : "text-[#8A8578]"}`}
           >
             <ClipboardList size={14} /> Pedidos {orders.length > 0 && `(${orders.length})`}
+          </button>
+          <button
+            onClick={() => setTab("correos")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md ${tab === "correos" ? "bg-white shadow-sm" : "text-[#8A8578]"}`}
+          >
+            <Mail size={14} /> Correos
           </button>
         </div>
         <div className="flex items-center gap-3">
@@ -1119,6 +1129,51 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
             </div>
           </div>
         </>
+      ) : tab === "correos" ? (
+        <div className="max-w-md">
+          <div className="border border-[#D8D3C7] rounded-xl bg-white p-4 mb-4">
+            <div className="text-sm font-medium mb-1">Correos administrativos</div>
+            <p className="text-[12px] text-[#8A8578] mb-3">
+              Cada vez que se levante un pedido, se manda un aviso a estos correos.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addAdminEmail()}
+                placeholder="correo@negocio.com"
+                className="flex-1 px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+              />
+              <button
+                onClick={addAdminEmail}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27]"
+              >
+                <Plus size={14} /> Agregar
+              </button>
+            </div>
+          </div>
+
+          {adminEmails.length === 0 ? (
+            <div className="text-sm text-[#8A8578] text-center py-6 border border-[#D8D3C7] rounded-xl bg-white">
+              Todavía no agregas ningún correo administrativo.
+            </div>
+          ) : (
+            <div className="border border-[#D8D3C7] rounded-xl bg-white overflow-hidden">
+              {adminEmails.map((email) => (
+                <div key={email} className="flex items-center justify-between px-4 py-2.5 border-b border-[#EDEAE1] last:border-0">
+                  <span className="text-sm">{email}</span>
+                  <button
+                    onClick={() => removeAdminEmail(email)}
+                    className="p-1.5 rounded hover:bg-[#FBEAE4] text-[#B3462C]"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       ) : (
         <div className="space-y-3">
           {orders.length === 0 ? (
