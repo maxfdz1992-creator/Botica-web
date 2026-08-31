@@ -221,8 +221,37 @@ export default function BoticaApp() {
     if (adminPhonesReady && adminPhones === null) setAdminPhones([]);
   }, [adminPhonesReady, adminPhones]);
 
-  // Cuando alguien toca "Confirmar" en el correo de verificación, llega aquí
-  // con ?verify=TOKEN en la URL.
+  const [pendingToken, setPendingToken] = useState(() => {
+    try {
+      const raw = localStorage.getItem("botica:pending-verification");
+      const pending = raw ? JSON.parse(raw) : null;
+      return pending?.token || null;
+    } catch {
+      return null;
+    }
+  });
+  const [verifyStandalone, setVerifyStandalone] = useState(null); // null | "foreign" | "error"
+
+  function finishLocalVerification(data) {
+    let existing = null;
+    try {
+      const raw = localStorage.getItem("botica:perfil-comprador");
+      existing = raw ? JSON.parse(raw) : null;
+    } catch {
+      existing = null;
+    }
+    saveProfile({ ...existing, name: data.name, email: data.email, emailVerified: true });
+    try {
+      localStorage.removeItem("botica:pending-verification");
+    } catch {
+      // no pasa nada si no se puede limpiar
+    }
+    setPendingToken(null);
+    supabase.from("email_verifications").delete().eq("token", data.token || pendingToken).then(() => {});
+  }
+
+  // Caso A: este mismo navegador recibió el link "?verify=TOKEN" (por ejemplo,
+  // si se abre desde el mismo Safari donde ya tenías la app abierta).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("verify");
@@ -235,19 +264,21 @@ export default function BoticaApp() {
           .select("*")
           .eq("token", token)
           .maybeSingle();
+
         if (data) {
-          let existing = null;
-          try {
-            const raw = localStorage.getItem("botica:perfil-comprador");
-            existing = raw ? JSON.parse(raw) : null;
-          } catch {
-            existing = null;
+          // Avisa a quien esté esperando (esta u otra pestaña/dispositivo) que ya se confirmó.
+          await supabase.from("email_verifications").update({ verified: true }).eq("token", token);
+
+          if (pendingToken === token) {
+            finishLocalVerification({ ...data, token });
+          } else {
+            setVerifyStandalone("foreign");
           }
-          saveProfile({ ...existing, name: data.name, email: data.email, emailVerified: true });
-          await supabase.from("email_verifications").delete().eq("token", token);
+        } else {
+          setVerifyStandalone("error");
         }
       } catch {
-        // si algo falla, simplemente no se marca la sesión como confirmada
+        setVerifyStandalone("error");
       } finally {
         params.delete("verify");
         const newUrl = window.location.pathname + (params.toString() ? `?${params}` : "");
@@ -255,6 +286,39 @@ export default function BoticaApp() {
       }
     })();
   }, []);
+
+  // Caso B (el más común en celular): el botón del correo se abrió en Safari
+  // normal, aparte de esta app instalada. Aquí nos quedamos escuchando en
+  // tiempo real hasta que ese otro lado marque el token como confirmado.
+  useEffect(() => {
+    if (!pendingToken) return;
+    let cancelled = false;
+
+    (async () => {
+      const { data } = await supabase
+        .from("email_verifications")
+        .select("*")
+        .eq("token", pendingToken)
+        .maybeSingle();
+      if (!cancelled && data?.verified) finishLocalVerification({ ...data, token: pendingToken });
+    })();
+
+    const channel = supabase
+      .channel(`email_verifications_${pendingToken}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "email_verifications", filter: `token=eq.${pendingToken}` },
+        (payload) => {
+          if (payload.new?.verified) finishLocalVerification({ ...payload.new, token: pendingToken });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [pendingToken]);
 
   const [cart, setCart] = useState({});
   const [search, setSearch] = useState("");
@@ -325,6 +389,40 @@ export default function BoticaApp() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ order, adminEmails: adminEmails || [] }),
     }).catch(() => {});
+  }
+
+  if (verifyStandalone === "foreign") {
+    return (
+      <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center px-5 text-center">
+        <div className="max-w-xs">
+          <div className="w-12 h-12 rounded-full bg-[#0F3A34] text-white flex items-center justify-center mx-auto mb-4">
+            <Check size={22} />
+          </div>
+          <div className="font-semibold text-[16px] mb-2">Correo confirmado</div>
+          <p className="text-sm text-[#8A8578]">
+            Ya puedes regresar a la app de Botica — ahí debería aparecer que ya iniciaste sesión, sin
+            necesidad de hacer nada más aquí.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (verifyStandalone === "error") {
+    return (
+      <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center px-5 text-center">
+        <div className="max-w-xs">
+          <div className="w-12 h-12 rounded-full bg-[#B3462C] text-white flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle size={20} />
+          </div>
+          <div className="font-semibold text-[16px] mb-2">Este enlace ya no es válido</div>
+          <p className="text-sm text-[#8A8578]">
+            Puede que ya se haya usado antes, o que haya pasado mucho tiempo. Regresa a la app e intenta
+            iniciar sesión de nuevo desde "Mi perfil".
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -473,6 +571,7 @@ export default function BoticaApp() {
             setShowProfileModal(false);
           }}
           onLogout={() => saveProfile(null)}
+          onVerificationSent={setPendingToken}
         />
       )}
     </div>
@@ -526,7 +625,7 @@ function PasswordGate({ onClose, onSuccess }) {
   );
 }
 
-function ProfileModal({ profile, profileReady, onClose, onSave, onLogout }) {
+function ProfileModal({ profile, profileReady, onClose, onSave, onLogout, onVerificationSent }) {
   const [step, setStep] = useState("form"); // form | sending | sent | error
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -570,6 +669,17 @@ function ProfileModal({ profile, profileReady, onClose, onSave, onLogout }) {
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || "No se pudo enviar el correo");
       if (data?.skipped) throw new Error(data.reason || "El envío de correos no está configurado");
+
+      try {
+        localStorage.setItem(
+          "botica:pending-verification",
+          JSON.stringify({ token, name: name.trim(), email: email.trim().toLowerCase() })
+        );
+      } catch {
+        // si no se puede guardar, la confirmación seguirá funcionando si se
+        // abre el correo desde el mismo navegador/pestaña
+      }
+      onVerificationSent?.(token);
 
       setStep("sent");
     } catch (err) {
@@ -633,11 +743,12 @@ function ProfileModal({ profile, profileReady, onClose, onSave, onLogout }) {
           </div>
           <div className="border border-[#D8D3C7] rounded-lg bg-white p-4 mb-3 text-sm">
             Te mandamos un correo a <strong>{email}</strong> con un botón para confirmar. Tócalo desde tu
-            correo para terminar de iniciar sesión.
+            correo — cuando lo hagas, esta app va a detectar la confirmación sola, sin que tengas que
+            regresar aquí manualmente.
           </div>
           <p className="text-[11px] text-[#8A8578]">
             Si no lo ves en unos minutos, revisa la carpeta de spam. Puedes cerrar esta ventana mientras
-            tanto.
+            tanto, se va a actualizar sola cuando confirmes.
           </p>
         </div>
       </div>
