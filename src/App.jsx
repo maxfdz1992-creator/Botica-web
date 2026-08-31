@@ -463,7 +463,7 @@ export default function BoticaApp() {
 
   return (
     <div className="min-h-screen bg-[#F7F6F2] text-[#1E2321] font-sans">
-      <header className="border-b border-[#D8D3C7] bg-[#0F3A34] text-[#F7F6F2]">
+      <header className="sticky top-0 z-30 border-b border-[#D8D3C7] bg-[#0F3A34] text-[#F7F6F2]">
         <div className="max-w-5xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2.5">
