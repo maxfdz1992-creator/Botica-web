@@ -793,6 +793,7 @@ function CartView({ items, total, onChangeQty, onRemove, onBackToShop, onCheckou
 
 function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }) {
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [saveProfile, setSaveProfile] = useState(false);
@@ -801,6 +802,7 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
   useEffect(() => {
     if (profileReady && profile && !prefilled) {
       setName(profile.name || "");
+      setEmail(profile.email || "");
       setPhone(profile.phone || "");
       setAddress(profile.address || "");
       setPrefilled(true);
@@ -811,7 +813,7 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
 
   function handlePlaceOrder() {
     if (!canSubmit) return;
-    onConfirm({ name, phone, address }, saveProfile);
+    onConfirm({ name, email, phone, address }, saveProfile);
   }
 
   return (
@@ -839,6 +841,18 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
             onChange={(e) => setName(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
             placeholder="Tu nombre"
+          />
+        </div>
+        <div>
+          <label className="text-[12px] text-[#8A8578] block mb-1 flex items-center gap-1">
+            <Mail size={12} /> Correo electrónico (opcional)
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+            placeholder="tu@correo.com"
           />
         </div>
         <div>
@@ -1184,6 +1198,7 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <div className="font-medium text-sm">{o.buyer.name}</div>
+                    {o.buyer.email && <div className="text-[12px] text-[#8A8578]">{o.buyer.email}</div>}
                     <div className="text-[12px] text-[#8A8578]">{o.buyer.phone}</div>
                     <div className="text-[12px] text-[#8A8578] flex items-center gap-1 mt-0.5">
                       <MapPin size={11} /> {o.buyer.address}
