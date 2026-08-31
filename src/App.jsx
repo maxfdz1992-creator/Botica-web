@@ -281,7 +281,16 @@ export default function BoticaApp() {
 
         if (data) {
           // Avisa a quien esté esperando (esta u otra pestaña/dispositivo) que ya se confirmó.
-          await supabase.from("email_verifications").update({ verified: true }).eq("token", token);
+          const { data: updated, error: updateError } = await supabase
+            .from("email_verifications")
+            .update({ verified: true })
+            .eq("token", token)
+            .select();
+
+          if (updateError || !updated || updated.length === 0) {
+            setVerifyStandalone("error");
+            return;
+          }
 
           if (pendingToken === token) {
             finishLocalVerification({ ...data, token });
