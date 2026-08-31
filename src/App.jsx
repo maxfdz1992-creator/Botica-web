@@ -1060,25 +1060,114 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
+  const [streetAddress, setStreetAddress] = useState("");
+  const [cp, setCp] = useState("");
+  const [colonia, setColonia] = useState("");
+  const [estado, setEstado] = useState("");
+  const [municipio, setMunicipio] = useState("");
   const [saveProfile, setSaveProfile] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
+
+  const [cpSuggestions, setCpSuggestions] = useState([]);
+  const [coloniaOptions, setColoniaOptions] = useState([]);
+  const [cpStatus, setCpStatus] = useState("idle"); // idle | checking | verified | notfound
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
     if (profileReady && profile && !prefilled) {
       setName(profile.name || "");
       setEmail(profile.email || "");
       setPhone(profile.phone || "");
-      setAddress(profile.address || "");
+      setStreetAddress(profile.streetAddress || profile.address || "");
+      setCp(profile.cp || "");
+      setColonia(profile.colonia || "");
+      setEstado(profile.estado || "");
+      setMunicipio(profile.municipio || "");
+      if (profile.cp && profile.colonia) {
+        setColoniaOptions([profile.colonia]);
+        setCpStatus("verified");
+      }
       setPrefilled(true);
     }
   }, [profileReady, profile, prefilled]);
 
-  const canSubmit = name.trim() && phone.trim() && address.trim();
+  // Busca coincidencias de código postal mientras se escribe.
+  useEffect(() => {
+    const digits = cp.replace(/\D/g, "").slice(0, 5);
+    if (digits.length < 2) {
+      setCpSuggestions([]);
+      return;
+    }
+    setCpStatus("checking");
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/postal-code?q=${digits}`);
+        const data = await res.json();
+        const results = data.results || [];
+        setCpSuggestions(results);
+        if (digits.length === 5) {
+          const exact = results.filter((r) => r.cp === digits);
+          if (exact.length > 0) {
+            applyCpMatch(digits, exact);
+          } else {
+            setCpStatus("notfound");
+          }
+        } else {
+          setCpStatus("idle");
+        }
+      } catch {
+        setCpStatus("idle");
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cp]);
+
+  function applyCpMatch(cpValue, records) {
+    const uniqueColonias = [...new Set(records.map((r) => r.colonia).filter(Boolean))];
+    setColoniaOptions(uniqueColonias);
+    setEstado(records[0].estado || "");
+    setMunicipio(records[0].municipio || "");
+    setColonia((prev) => (uniqueColonias.includes(prev) ? prev : uniqueColonias[0] || ""));
+    setCpStatus("verified");
+    setShowSuggestions(false);
+  }
+
+  async function pickSuggestion(cpValue) {
+    setCp(cpValue);
+    setShowSuggestions(false);
+    try {
+      const res = await fetch(`/api/postal-code?q=${cpValue}`);
+      const data = await res.json();
+      const results = (data.results || []).filter((r) => r.cp === cpValue);
+      if (results.length > 0) applyCpMatch(cpValue, results);
+    } catch {
+      // si falla, el usuario puede seguir llenando los campos a mano
+    }
+  }
+
+  const uniqueCpList = useMemo(() => {
+    const seen = new Set();
+    const list = [];
+    for (const r of cpSuggestions) {
+      if (!seen.has(r.cp)) {
+        seen.add(r.cp);
+        list.push(r);
+      }
+    }
+    return list.slice(0, 8);
+  }, [cpSuggestions]);
+
+  const canSubmit =
+    name.trim() && phone.trim() && streetAddress.trim() && cp.length === 5 && colonia.trim() && estado.trim() && municipio.trim();
 
   function handlePlaceOrder() {
     if (!canSubmit) return;
-    onConfirm({ name, email, phone, address }, saveProfile);
+    const fullAddress = `${streetAddress}, ${colonia}, ${municipio}, ${estado}, CP ${cp}`;
+    onConfirm(
+      { name, email, phone, address: fullAddress, streetAddress, cp, colonia, estado, municipio },
+      saveProfile
+    );
   }
 
   return (
@@ -1129,18 +1218,111 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
             placeholder="Número para confirmar el pedido"
           />
         </div>
+
+        <div className="pt-1 border-t border-[#EDEAE1]">
+          <div className="text-[12px] text-[#8A8578] flex items-center gap-1 mt-2 mb-2">
+            <MapPin size={12} /> Dirección
+          </div>
+        </div>
+
         <div>
-          <label className="text-[12px] text-[#8A8578] block mb-1 flex items-center gap-1">
-            <MapPin size={12} /> Ubicación / dirección
-          </label>
-          <textarea
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            rows={3}
-            className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30 resize-none"
-            placeholder="Calle, número, colonia, referencias..."
+          <label className="text-[12px] text-[#8A8578] block mb-1">Dirección y número</label>
+          <input
+            value={streetAddress}
+            onChange={(e) => setStreetAddress(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+            placeholder="Calle y número"
           />
         </div>
+
+        <div className="relative">
+          <label className="text-[12px] text-[#8A8578] block mb-1">Código postal</label>
+          <input
+            inputMode="numeric"
+            value={cp}
+            onChange={(e) => {
+              setCp(e.target.value.replace(/\D/g, "").slice(0, 5));
+              setShowSuggestions(true);
+              setCpStatus("idle");
+              setColoniaOptions([]);
+            }}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+            placeholder="66230"
+          />
+          {cpStatus === "checking" && <div className="text-[11px] text-[#8A8578] mt-1">Buscando...</div>}
+          {cpStatus === "verified" && (
+            <div className="text-[11px] text-[#0F3A34] mt-1 flex items-center gap-1">
+              <Check size={12} /> Código postal verificado
+            </div>
+          )}
+          {cpStatus === "notfound" && (
+            <div className="text-[11px] text-[#B3462C] mt-1">
+              No encontramos este código postal — revisa que esté bien escrito.
+            </div>
+          )}
+          {showSuggestions && cpStatus !== "verified" && uniqueCpList.length > 0 && (
+            <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#D8D3C7] rounded-lg shadow-lg max-h-52 overflow-y-auto">
+              {uniqueCpList.map((r) => (
+                <button
+                  key={r.cp}
+                  type="button"
+                  onClick={() => pickSuggestion(r.cp)}
+                  className="block w-full text-left px-3 py-2 text-sm hover:bg-[#F7F6F2] border-b border-[#EDEAE1] last:border-0"
+                >
+                  <span className="font-medium">{r.cp}</span> — {r.colonia}, {r.municipio}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="text-[12px] text-[#8A8578] block mb-1">Colonia</label>
+          {coloniaOptions.length > 0 ? (
+            <select
+              value={colonia}
+              onChange={(e) => setColonia(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+            >
+              {coloniaOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              value={colonia}
+              onChange={(e) => setColonia(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+              placeholder="Escribe primero el código postal"
+            />
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[12px] text-[#8A8578] block mb-1">Municipio</label>
+            <input
+              value={municipio}
+              onChange={(e) => setMunicipio(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+              placeholder="Municipio"
+            />
+          </div>
+          <div>
+            <label className="text-[12px] text-[#8A8578] block mb-1">Estado</label>
+            <input
+              value={estado}
+              onChange={(e) => setEstado(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+              placeholder="Estado"
+            />
+          </div>
+        </div>
+
         <label className="flex items-center gap-2 text-sm cursor-pointer pt-1">
           <input
             type="checkbox"
@@ -1608,15 +1790,130 @@ function ResultsView({ orders, onLogout }) {
     return Object.values(map).sort((a, b) => b.total - a.total);
   }, [filteredOrders]);
 
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function exportToExcel() {
+    const XLSX = await import("xlsx");
+
+    const resumenRows = [
+      ["Medicina", "Unidades", "Precio promedio", "Total"],
+      ...byMedicine.map((m) => [m.name, m.quantity, +(m.revenue / m.quantity).toFixed(2), +m.revenue.toFixed(2)]),
+      [],
+      ["Unidades vendidas", totalUnits],
+      ["Ingresos totales", +totalRevenue.toFixed(2)],
+    ];
+    const clientesRows = [
+      ["Cliente", "Teléfono", "Compras", "Fechas", "Total gastado"],
+      ...byCustomer.map((c) => [
+        c.name,
+        c.phone,
+        c.dates.length,
+        c.dates.map((d) => new Date(d).toLocaleString("es-MX")).join(" | "),
+        +c.total.toFixed(2),
+      ]),
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumenRows), "Resumen");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(clientesRows), "Clientes");
+
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    downloadBlob(
+      new Blob([wbout], { type: "application/octet-stream" }),
+      `resultados_${periodLabel.replace(/\s+/g, "_")}.xlsx`
+    );
+  }
+
+  function exportToWord() {
+    const medicineRows = byMedicine
+      .map(
+        (m) => `
+        <tr>
+          <td>${m.name}</td>
+          <td>${m.quantity} ${m.unit}${m.quantity === 1 ? "" : "s"}</td>
+          <td>${currency(m.revenue / m.quantity)}</td>
+          <td>${currency(m.revenue)}</td>
+        </tr>`
+      )
+      .join("");
+
+    const customerRows = byCustomer
+      .map(
+        (c) => `
+        <tr>
+          <td>${c.name}</td>
+          <td>${c.phone}</td>
+          <td>${c.dates.length}</td>
+          <td>${c.dates.map((d) => new Date(d).toLocaleString("es-MX")).join(" · ")}</td>
+          <td>${currency(c.total)}</td>
+        </tr>`
+      )
+      .join("");
+
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8"><title>Resultados de venta</title></head>
+      <body style="font-family: Arial, sans-serif;">
+        <h2>Resultados de venta (${periodLabel})</h2>
+        <p><strong>Unidades vendidas:</strong> ${totalUnits} &nbsp;&nbsp; <strong>Ingresos totales:</strong> ${currency(totalRevenue)}</p>
+
+        <h3>Por medicina</h3>
+        <table border="1" cellspacing="0" cellpadding="6" style="border-collapse: collapse; width: 100%;">
+          <tr style="background:#0F3A34; color:#ffffff;">
+            <th>Medicina</th><th>Unidades</th><th>Precio prom.</th><th>Total</th>
+          </tr>
+          ${medicineRows || "<tr><td colspan='4'>Sin datos</td></tr>"}
+        </table>
+
+        <h3 style="margin-top:24px;">Clientes en este periodo</h3>
+        <table border="1" cellspacing="0" cellpadding="6" style="border-collapse: collapse; width: 100%;">
+          <tr style="background:#0F3A34; color:#ffffff;">
+            <th>Cliente</th><th>Teléfono</th><th>Compras</th><th>Fechas</th><th>Total gastado</th>
+          </tr>
+          ${customerRows || "<tr><td colspan='5'>Sin datos</td></tr>"}
+        </table>
+      </body>
+      </html>
+    `;
+
+    downloadBlob(
+      new Blob(["\ufeff", html], { type: "application/msword" }),
+      `resultados_${periodLabel.replace(/\s+/g, "_")}.doc`
+    );
+  }
+
   return (
     <main className="max-w-5xl mx-auto px-5 py-6">
       <div className="flex items-center justify-between mb-5">
         <div className="font-semibold flex items-center gap-1.5 text-[15px]">
           <TrendingUp size={16} /> Resultados de venta
         </div>
-        <button onClick={onLogout} className="text-[12px] text-[#8A8578] hover:text-[#B3462C]">
-          Cerrar sesión
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={exportToExcel}
+            className="flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 rounded-lg border border-[#0F3A34] text-[#0F3A34] hover:bg-white"
+          >
+            <FileSpreadsheet size={13} /> Excel
+          </button>
+          <button
+            onClick={exportToWord}
+            className="flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 rounded-lg border border-[#0F3A34] text-[#0F3A34] hover:bg-white"
+          >
+            <FileText size={13} /> Word
+          </button>
+          <button onClick={onLogout} className="text-[12px] text-[#8A8578] hover:text-[#B3462C]">
+            Cerrar sesión
+          </button>
+        </div>
       </div>
 
       <div className="border border-[#D8D3C7] rounded-xl bg-white p-4 mb-5">
