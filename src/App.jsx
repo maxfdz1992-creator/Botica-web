@@ -1238,3 +1238,1241 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
       )}
 
       <div className="border border-[#D8D3C7] rounded-xl bg-white p-4 space-y-3 mb-4">
+        <div className="text-sm font-medium">Datos de entrega</div>
+        <div>
+          <label className="text-[12px] text-[#8A8578] block mb-1">Nombre completo</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+            placeholder="Tu nombre"
+          />
+        </div>
+        <div>
+          <label className="text-[12px] text-[#8A8578] block mb-1 flex items-center gap-1">
+            <Mail size={12} /> Correo electrónico (opcional)
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+            placeholder="tu@correo.com"
+          />
+        </div>
+        <div>
+          <label className="text-[12px] text-[#8A8578] block mb-1">Teléfono</label>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+            placeholder="Número para confirmar el pedido"
+          />
+        </div>
+
+        <div className="pt-1 border-t border-[#EDEAE1]">
+          <div className="text-[12px] text-[#8A8578] flex items-center gap-1 mt-2 mb-2">
+            <MapPin size={12} /> Dirección
+          </div>
+        </div>
+
+        <div className="relative">
+          <label className="text-[12px] text-[#8A8578] block mb-1">Dirección y número</label>
+          <input
+            value={streetAddress}
+            onChange={(e) => {
+              setStreetAddress(e.target.value);
+              setShowStreetSuggestions(true);
+            }}
+            onFocus={() => setShowStreetSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowStreetSuggestions(false), 150)}
+            className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+            placeholder="Calle y número"
+          />
+          {showStreetSuggestions && streetSuggestions.length > 0 && (
+            <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#D8D3C7] rounded-lg shadow-lg max-h-52 overflow-y-auto">
+              {streetSuggestions.map((s, i) => (
+                <button
+                  key={`${s.street}-${i}`}
+                  type="button"
+                  onClick={() => pickStreetSuggestion(s)}
+                  className="block w-full text-left px-3 py-2 text-sm hover:bg-[#F7F6F2] border-b border-[#EDEAE1] last:border-0"
+                >
+                  {s.street}
+                  {s.neighbourhood ? <span className="text-[#8A8578]"> — {s.neighbourhood}</span> : null}
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="text-[10px] text-[#8A8578] mt-1">
+            Sugerencias de OpenStreetMap — revisa que el número esté correcto, no siempre viene incluido.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowMapPicker(true)}
+            className="text-[12px] text-[#0F3A34] underline mt-1"
+          >
+            ¿No encuentras tu dirección? Márcala en un mapa
+          </button>
+          {lat && lng && (
+            <p className="text-[11px] text-[#8A8578] mt-1 flex items-center gap-1">
+              <Check size={11} className="text-[#0F3A34]" /> Ubicación marcada en el mapa
+            </p>
+          )}
+        </div>
+
+        <div className="relative">
+          <label className="text-[12px] text-[#8A8578] block mb-1">Código postal</label>
+          <input
+            inputMode="numeric"
+            value={cp}
+            onChange={(e) => {
+              setCp(e.target.value.replace(/\D/g, "").slice(0, 5));
+              setShowSuggestions(true);
+              setCpStatus("idle");
+              setColoniaOptions([]);
+              setMunicipioOptions([]);
+              setEstadoOptions([]);
+            }}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+            placeholder="66230"
+          />
+          {cpStatus === "checking" && <div className="text-[11px] text-[#8A8578] mt-1">Buscando...</div>}
+          {cpStatus === "verified" && (
+            <div className="text-[11px] text-[#0F3A34] mt-1 flex items-center gap-1">
+              <Check size={12} /> Código postal verificado
+            </div>
+          )}
+          {cpStatus === "notfound" && (
+            <div className="text-[11px] text-[#B3462C] mt-1">
+              No encontramos este código postal — revisa que esté bien escrito.
+            </div>
+          )}
+          {showSuggestions && cpStatus !== "verified" && uniqueCpList.length > 0 && (
+            <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#D8D3C7] rounded-lg shadow-lg max-h-52 overflow-y-auto">
+              {uniqueCpList.map((r) => (
+                <button
+                  key={r.cp}
+                  type="button"
+                  onClick={() => pickSuggestion(r.cp)}
+                  className="block w-full text-left px-3 py-2 text-sm hover:bg-[#F7F6F2] border-b border-[#EDEAE1] last:border-0"
+                >
+                  <span className="font-medium">{r.cp}</span> — {r.colonia}, {r.municipio}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="text-[12px] text-[#8A8578] block mb-1">Colonia</label>
+          {coloniaOptions.length > 0 ? (
+            <select
+              value={colonia}
+              onChange={(e) => setColonia(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+            >
+              {coloniaOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              value={colonia}
+              onChange={(e) => setColonia(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+              placeholder="Escribe primero el código postal"
+            />
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[12px] text-[#8A8578] block mb-1">Municipio</label>
+            {municipioOptions.length > 0 ? (
+              <select
+                value={municipio}
+                onChange={(e) => setMunicipio(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+              >
+                {municipioOptions.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={municipio}
+                onChange={(e) => setMunicipio(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+                placeholder="Escribe primero el código postal"
+              />
+            )}
+          </div>
+          <div>
+            <label className="text-[12px] text-[#8A8578] block mb-1">Estado</label>
+            {estadoOptions.length > 0 ? (
+              <select
+                value={estado}
+                onChange={(e) => setEstado(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+              >
+                {estadoOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={estado}
+                onChange={(e) => setEstado(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+                placeholder="Escribe primero el código postal"
+              />
+            )}
+          </div>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm cursor-pointer pt-1">
+          <input
+            type="checkbox"
+            checked={saveProfile}
+            onChange={(e) => setSaveProfile(e.target.checked)}
+            className="accent-[#0F3A34]"
+          />
+          Guardar mis datos para mi próxima compra
+        </label>
+      </div>
+
+      <div className="flex items-center justify-between mb-3 text-sm">
+        <span className="text-[#8A8578]">{items.length} producto(s)</span>
+        <span className="font-semibold">{currency(total)}</span>
+      </div>
+      <button
+        onClick={handlePlaceOrder}
+        disabled={!canSubmit}
+        className="w-full py-2.5 rounded-lg bg-[#0F3A34] text-white font-medium text-sm hover:bg-[#0B2C27] disabled:opacity-40"
+      >
+        Levantar pedido
+      </button>
+
+      {showMapPicker && (
+        <MapPickerModal onClose={() => setShowMapPicker(false)} onConfirm={handleMapConfirm} />
+      )}
+    </main>
+  );
+}
+
+function MapPickerModal({ onClose, onConfirm }) {
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
+  const [Lmod, setLmod] = useState(null);
+  const [marker, setMarker] = useState(null);
+  const [locating, setLocating] = useState(true);
+  const [loadingAddr, setLoadingAddr] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    import("leaflet").then((mod) => {
+      if (!cancelled) setLmod(mod.default || mod);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!Lmod || !mapContainerRef.current || mapRef.current) return;
+    const L = Lmod;
+
+    const map = L.map(mapContainerRef.current).setView([23.6345, -102.5528], 5);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap",
+      maxZoom: 19,
+    }).addTo(map);
+
+    function placeMarker(lat, lng) {
+      setMarker({ lat, lng });
+      if (markerRef.current) {
+        markerRef.current.setLatLng([lat, lng]);
+      } else {
+        markerRef.current = L.circleMarker([lat, lng], {
+          radius: 9,
+          color: "#0F3A34",
+          weight: 3,
+          fillColor: "#E8846B",
+          fillOpacity: 1,
+        }).addTo(map);
+      }
+    }
+
+    map.on("click", (e) => placeMarker(e.latlng.lat, e.latlng.lng));
+    mapRef.current = map;
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          map.setView([latitude, longitude], 16);
+          placeMarker(latitude, longitude);
+          setLocating(false);
+        },
+        () => setLocating(false),
+        { timeout: 6000 }
+      );
+    } else {
+      setLocating(false);
+    }
+
+    setTimeout(() => map.invalidateSize(), 200);
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+    };
+  }, [Lmod]);
+
+  async function handleConfirm() {
+    if (!marker) return;
+    setLoadingAddr(true);
+    try {
+      const res = await fetch(`/api/reverse-geocode?lat=${marker.lat}&lon=${marker.lng}`);
+      const data = await res.json();
+      onConfirm(data.result || {}, marker.lat, marker.lng);
+    } catch {
+      onConfirm({}, marker.lat, marker.lng);
+    } finally {
+      setLoadingAddr(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-[#F7F6F2] rounded-xl w-full max-w-md shadow-xl overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-[#D8D3C7]">
+          <div className="font-semibold text-sm flex items-center gap-1.5">
+            <MapPin size={15} /> Marca tu ubicación
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-[#EDEAE1] rounded">
+            <X size={16} />
+          </button>
+        </div>
+        <p className="px-4 pt-3 text-[12px] text-[#8A8578]">
+          Toca en el mapa el punto exacto donde quieres recibir tu pedido.
+        </p>
+        <div ref={mapContainerRef} style={{ height: 320, width: "100%" }} className="mt-2 bg-[#EDEAE1]" />
+        <div className="p-4">
+          {locating && <div className="text-[12px] text-[#8A8578] mb-2">Buscando tu ubicación actual...</div>}
+          <button
+            onClick={handleConfirm}
+            disabled={!marker || loadingAddr}
+            className="w-full py-2.5 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27] disabled:opacity-40"
+          >
+            {loadingAddr ? "Buscando dirección..." : marker ? "Usar esta ubicación" : "Toca el mapa primero"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrderConfirmed({ order, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-[#F7F6F2] rounded-xl max-w-sm w-full p-6 shadow-xl text-center">
+        <div className="w-12 h-12 rounded-full bg-[#0F3A34] text-white flex items-center justify-center mx-auto mb-3">
+          <Check size={22} />
+        </div>
+        <div className="font-semibold text-[16px] mb-1">Pedido recibido</div>
+        <div className="text-sm text-[#8A8578] mb-4">
+          Guardamos tu pedido a nombre de {order.buyer.name}. Total: {currency(order.total)}.
+        </div>
+        <button onClick={onClose} className="w-full py-2.5 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27]">
+          Listo
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory, orders, adminEmails, setAdminEmails, onLogout }) {
+  const [tab, setTab] = useState("inventario");
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState({});
+  const [newProduct, setNewProduct] = useState({ name: "", unit: UNIT_TYPES[0], quantity: "", price: "" });
+  const [importOpen, setImportOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  function clearInventory() {
+    setInventory([]);
+    setShowClearConfirm(false);
+  }
+
+  function addAdminEmail() {
+    const email = newEmail.trim().toLowerCase();
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) return;
+    if (adminEmails.includes(email)) return;
+    setAdminEmails([...adminEmails, email]);
+    setNewEmail("");
+  }
+
+  function removeAdminEmail(email) {
+    setAdminEmails(adminEmails.filter((e) => e !== email));
+  }
+
+  function startEdit(p) {
+    setEditingId(p.id);
+    setDraft({ quantity: String(p.quantity), price: String(p.price) });
+  }
+
+  function saveEdit(id) {
+    const qty = Number(draft.quantity);
+    const price = Number(draft.price);
+    if (Number.isNaN(qty) || Number.isNaN(price) || qty < 0 || price < 0) return;
+    setInventory(fullList.map((p) => (p.id === id ? { ...p, quantity: qty, price } : p)));
+    setEditingId(null);
+  }
+
+  function deleteProduct(id) {
+    setInventory(fullList.filter((p) => p.id !== id));
+  }
+
+  function addProduct() {
+    const qty = Number(newProduct.quantity);
+    const price = Number(newProduct.price);
+    if (!newProduct.name.trim() || Number.isNaN(qty) || Number.isNaN(price)) return;
+    setInventory([
+      ...fullList,
+      { id: "p_" + Date.now(), name: newProduct.name.trim(), unit: newProduct.unit, quantity: qty, price },
+    ]);
+    setNewProduct({ name: "", unit: UNIT_TYPES[0], quantity: "", price: "" });
+  }
+
+  function applyImport(parsedItems) {
+    let next = [...fullList];
+    parsedItems.forEach((item) => {
+      const idx = next.findIndex((p) => normalize(p.name) === normalize(item.name));
+      if (idx >= 0) {
+        next[idx] = { ...next[idx], unit: item.unit, quantity: item.quantity, price: item.price };
+      } else {
+        next.push({ id: "p_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7), ...item });
+      }
+    });
+    setInventory(next);
+    setImportOpen(false);
+  }
+
+  return (
+    <>
+    <main className="max-w-5xl mx-auto px-5 py-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-5">
+        <div className="flex items-center gap-1 bg-[#EDEAE1] rounded-lg p-1 w-fit">
+          <button
+            onClick={() => setTab("inventario")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md ${tab === "inventario" ? "bg-white shadow-sm" : "text-[#8A8578]"}`}
+          >
+            <Package size={14} /> Inventario
+          </button>
+          <button
+            onClick={() => setTab("pedidos")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md ${tab === "pedidos" ? "bg-white shadow-sm" : "text-[#8A8578]"}`}
+          >
+            <ClipboardList size={14} /> Pedidos {orders.length > 0 && `(${orders.length})`}
+          </button>
+          <button
+            onClick={() => setTab("correos")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md ${tab === "correos" ? "bg-white shadow-sm" : "text-[#8A8578]"}`}
+          >
+            <Mail size={14} /> Correos
+          </button>
+        </div>
+        <div className="flex items-center gap-3">
+          {tab === "inventario" && (
+            <>
+              <button
+                onClick={() => setImportOpen(true)}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-[#0F3A34] text-[#0F3A34] hover:bg-white"
+              >
+                <Upload size={14} /> Importar inventario
+              </button>
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-[#B3462C] text-[#B3462C] hover:bg-[#FBEAE4]"
+              >
+                <Trash2 size={14} /> Vaciar inventario
+              </button>
+            </>
+          )}
+          <button onClick={onLogout} className="text-[12px] text-[#8A8578] hover:text-[#B3462C]">
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+
+      {tab === "inventario" ? (
+        <>
+          <div className="mb-4">
+            <SearchBar search={search} setSearch={setSearch} placeholder="Buscar en el inventario..." />
+          </div>
+
+          <div className="border border-[#D8D3C7] rounded-xl bg-white overflow-x-auto mb-6">
+            <table className="w-full text-sm min-w-[560px]">
+              <thead>
+                <tr className="text-left text-[12px] text-[#8A8578] border-b border-[#D8D3C7]">
+                  <th className="px-4 py-2.5 font-medium">Medicina</th>
+                  <th className="px-4 py-2.5 font-medium">Unidad</th>
+                  <th className="px-4 py-2.5 font-medium">Existencias</th>
+                  <th className="px-4 py-2.5 font-medium">Precio</th>
+                  <th className="px-4 py-2.5 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {!allLoaded ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-center text-[#8A8578]">Cargando...</td>
+                  </tr>
+                ) : list.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-center text-[#8A8578]">Sin resultados.</td>
+                  </tr>
+                ) : (
+                  list.map((p) => {
+                    const isEditing = editingId === p.id;
+                    return (
+                      <tr key={p.id} className="border-b border-[#EDEAE1] last:border-0">
+                        <td className="px-4 py-2.5">{p.name}</td>
+                        <td className="px-4 py-2.5 capitalize text-[#8A8578]">{p.unit}</td>
+                        <td className="px-4 py-2.5">
+                          {isEditing ? (
+                            <input
+                              value={draft.quantity}
+                              onChange={(e) => setDraft({ ...draft, quantity: e.target.value })}
+                              className="w-20 px-2 py-1 rounded border border-[#D8D3C7] text-sm"
+                            />
+                          ) : (
+                            <span className={p.quantity <= 5 ? "text-[#B3462C] font-medium" : ""}>{p.quantity}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {isEditing ? (
+                            <input
+                              value={draft.price}
+                              onChange={(e) => setDraft({ ...draft, price: e.target.value })}
+                              className="w-20 px-2 py-1 rounded border border-[#D8D3C7] text-sm"
+                            />
+                          ) : (
+                            currency(p.price)
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                          {isEditing ? (
+                            <button onClick={() => saveEdit(p.id)} className="p-1.5 rounded hover:bg-[#EDEAE1] text-[#0F3A34]">
+                              <Check size={15} />
+                            </button>
+                          ) : (
+                            <button onClick={() => startEdit(p)} className="p-1.5 rounded hover:bg-[#EDEAE1] text-[#8A8578]">
+                              <Pencil size={14} />
+                            </button>
+                          )}
+                          <button onClick={() => deleteProduct(p.id)} className="p-1.5 rounded hover:bg-[#EDEAE1] text-[#B3462C]">
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="border border-[#D8D3C7] rounded-xl bg-white p-4">
+            <div className="text-sm font-medium mb-3">Agregar medicina nueva</div>
+            <div className="grid sm:grid-cols-4 gap-2">
+              <input
+                value={newProduct.name}
+                onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                placeholder="Nombre"
+                className="px-3 py-2 rounded-lg border border-[#D8D3C7] text-sm sm:col-span-2"
+              />
+              <select
+                value={newProduct.unit}
+                onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}
+                className="px-3 py-2 rounded-lg border border-[#D8D3C7] text-sm capitalize"
+              >
+                {UNIT_TYPES.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-2">
+                <input
+                  value={newProduct.quantity}
+                  onChange={(e) => setNewProduct({ ...newProduct, quantity: e.target.value })}
+                  placeholder="Cant."
+                  className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] text-sm"
+                />
+              </div>
+              <input
+                value={newProduct.price}
+                onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                placeholder="Precio"
+                className="px-3 py-2 rounded-lg border border-[#D8D3C7] text-sm"
+              />
+              <button
+                onClick={addProduct}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27] sm:col-span-1"
+              >
+                <Plus size={14} /> Agregar
+              </button>
+            </div>
+          </div>
+        </>
+      ) : tab === "correos" ? (
+        <div className="max-w-md">
+          <div className="border border-[#D8D3C7] rounded-xl bg-white p-4 mb-4">
+            <div className="text-sm font-medium mb-1">Correos administrativos</div>
+            <p className="text-[12px] text-[#8A8578] mb-3">
+              Cada vez que se levante un pedido, se manda un aviso a estos correos.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addAdminEmail()}
+                placeholder="correo@negocio.com"
+                className="flex-1 px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+              />
+              <button
+                onClick={addAdminEmail}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27]"
+              >
+                <Plus size={14} /> Agregar
+              </button>
+            </div>
+          </div>
+
+          {adminEmails.length === 0 ? (
+            <div className="text-sm text-[#8A8578] text-center py-6 border border-[#D8D3C7] rounded-xl bg-white">
+              Todavía no agregas ningún correo administrativo.
+            </div>
+          ) : (
+            <div className="border border-[#D8D3C7] rounded-xl bg-white overflow-hidden">
+              {adminEmails.map((email) => (
+                <div key={email} className="flex items-center justify-between px-4 py-2.5 border-b border-[#EDEAE1] last:border-0">
+                  <span className="text-sm">{email}</span>
+                  <button
+                    onClick={() => removeAdminEmail(email)}
+                    className="p-1.5 rounded hover:bg-[#FBEAE4] text-[#B3462C]"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {orders.length === 0 ? (
+            <div className="text-sm text-[#8A8578] text-center py-10">Todavía no hay pedidos.</div>
+          ) : (
+            orders.map((o) => (
+              <div key={o.id} className="border border-[#D8D3C7] rounded-xl bg-white p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <div className="font-medium text-sm">{o.buyer.name}</div>
+                    {o.buyer.email && <div className="text-[12px] text-[#8A8578]">{o.buyer.email}</div>}
+                    <div className="text-[12px] text-[#8A8578]">{o.buyer.phone}</div>
+                    <div className="text-[12px] text-[#8A8578] flex items-center gap-1 mt-0.5">
+                      <MapPin size={11} /> {o.buyer.address}
+                    </div>
+                    {o.buyer.lat && o.buyer.lng && (
+                      <a
+                        href={`https://www.google.com/maps?q=${o.buyer.lat},${o.buyer.lng}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-[#0F3A34] underline"
+                      >
+                        Ver ubicación marcada en el mapa
+                      </a>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <div className="font-semibold text-sm">{currency(o.total)}</div>
+                    <div className="text-[11px] text-[#8A8578]">{new Date(o.date).toLocaleString("es-MX")}</div>
+                  </div>
+                </div>
+                <div className="text-[12px] text-[#8A8578] border-t border-[#EDEAE1] pt-2 mt-1">
+                  {o.items.map((i) => `${i.qty} ${i.unit} ${i.name}`).join(" · ")}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </main>
+
+    {importOpen && <ImportWordModal onClose={() => setImportOpen(false)} onApply={applyImport} />}
+
+    {showClearConfirm && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="absolute inset-0 bg-black/40" onClick={() => setShowClearConfirm(false)} />
+        <div className="relative bg-[#F7F6F2] rounded-xl max-w-xs w-full p-5 shadow-xl">
+          <div className="flex items-center gap-2 mb-3 text-[#B3462C]">
+            <AlertTriangle size={18} />
+            <div className="font-semibold">Vaciar inventario</div>
+          </div>
+          <p className="text-sm text-[#1E2321] mb-4">
+            Esto va a borrar las {fullList.length} medicina(s) que tienes cargadas ahora mismo. No se puede
+            deshacer. Los pedidos ya hechos no se ven afectados.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowClearConfirm(false)}
+              className="flex-1 py-2 rounded-lg border border-[#D8D3C7] text-sm hover:bg-white"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={clearInventory}
+              className="flex-1 py-2 rounded-lg bg-[#B3462C] text-white text-sm font-medium hover:bg-[#96371F]"
+            >
+              Sí, borrar todo
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
+  );
+}
+
+const PIE_COLORS = ["#0F3A34", "#E8846B", "#5B8C7E", "#C9A227", "#B3462C", "#8A8578", "#3E6259", "#D8A47F"];
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function ResultsView({ orders, onLogout }) {
+  const [mode, setMode] = useState("exact"); // exact | range
+  const [exactDate, setExactDate] = useState(todayStr());
+  const [startDate, setStartDate] = useState(todayStr());
+  const [endDate, setEndDate] = useState(todayStr());
+  const [untilPresent, setUntilPresent] = useState(true);
+  const [Recharts, setRecharts] = useState(null); // null = cargando, false = no disponible
+
+  useEffect(() => {
+    let mounted = true;
+    import("recharts")
+      .then((mod) => {
+        if (mounted) setRecharts(mod);
+      })
+      .catch(() => {
+        if (mounted) setRecharts(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const effectiveEndDate = untilPresent ? todayStr() : endDate;
+
+  const periodLabel =
+    mode === "exact"
+      ? `del ${exactDate}`
+      : `del ${startDate} al ${untilPresent ? "presente" : effectiveEndDate}`;
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter((o) => {
+      const d = new Date(o.date);
+      if (Number.isNaN(d.getTime())) return false;
+      const oDay = d.toISOString().slice(0, 10);
+      if (mode === "exact") return oDay === exactDate;
+      return oDay >= startDate && oDay <= effectiveEndDate;
+    });
+  }, [orders, mode, exactDate, startDate, effectiveEndDate]);
+
+  const byMedicine = useMemo(() => {
+    const map = {};
+    filteredOrders.forEach((o) => {
+      o.items.forEach((it) => {
+        if (!map[it.name]) map[it.name] = { name: it.name, unit: it.unit, quantity: 0, revenue: 0 };
+        map[it.name].quantity += it.qty;
+        map[it.name].revenue += it.qty * it.price;
+      });
+    });
+    return Object.values(map).sort((a, b) => b.revenue - a.revenue);
+  }, [filteredOrders]);
+
+  const totalUnits = byMedicine.reduce((sum, m) => sum + m.quantity, 0);
+  const totalRevenue = byMedicine.reduce((sum, m) => sum + m.revenue, 0);
+
+  const pieData = byMedicine.map((m) => ({ name: m.name, value: m.revenue }));
+
+  const byCustomer = useMemo(() => {
+    const map = {};
+    filteredOrders.forEach((o) => {
+      const key = `${normalize(o.buyer?.name || "")}|${normalize(o.buyer?.phone || "")}`;
+      if (!map[key]) {
+        map[key] = { name: o.buyer?.name || "Sin nombre", phone: o.buyer?.phone || "", dates: [], total: 0 };
+      }
+      map[key].dates.push(o.date);
+      map[key].total += o.total;
+    });
+    return Object.values(map).sort((a, b) => b.total - a.total);
+  }, [filteredOrders]);
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function exportToExcel() {
+    const XLSX = await import("xlsx");
+
+    const resumenRows = [
+      ["Medicina", "Unidades", "Precio promedio", "Total"],
+      ...byMedicine.map((m) => [m.name, m.quantity, +(m.revenue / m.quantity).toFixed(2), +m.revenue.toFixed(2)]),
+      [],
+      ["Unidades vendidas", totalUnits],
+      ["Ingresos totales", +totalRevenue.toFixed(2)],
+    ];
+    const clientesRows = [
+      ["Cliente", "Teléfono", "Compras", "Fechas", "Total gastado"],
+      ...byCustomer.map((c) => [
+        c.name,
+        c.phone,
+        c.dates.length,
+        c.dates.map((d) => new Date(d).toLocaleString("es-MX")).join(" | "),
+        +c.total.toFixed(2),
+      ]),
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumenRows), "Resumen");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(clientesRows), "Clientes");
+
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    downloadBlob(
+      new Blob([wbout], { type: "application/octet-stream" }),
+      `resultados_${periodLabel.replace(/\s+/g, "_")}.xlsx`
+    );
+  }
+
+  function exportToWord() {
+    const medicineRows = byMedicine
+      .map(
+        (m) => `
+        <tr>
+          <td>${m.name}</td>
+          <td>${m.quantity} ${m.unit}${m.quantity === 1 ? "" : "s"}</td>
+          <td>${currency(m.revenue / m.quantity)}</td>
+          <td>${currency(m.revenue)}</td>
+        </tr>`
+      )
+      .join("");
+
+    const customerRows = byCustomer
+      .map(
+        (c) => `
+        <tr>
+          <td>${c.name}</td>
+          <td>${c.phone}</td>
+          <td>${c.dates.length}</td>
+          <td>${c.dates.map((d) => new Date(d).toLocaleString("es-MX")).join(" · ")}</td>
+          <td>${currency(c.total)}</td>
+        </tr>`
+      )
+      .join("");
+
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8"><title>Resultados de venta</title></head>
+      <body style="font-family: Arial, sans-serif;">
+        <h2>Resultados de venta (${periodLabel})</h2>
+        <p><strong>Unidades vendidas:</strong> ${totalUnits} &nbsp;&nbsp; <strong>Ingresos totales:</strong> ${currency(totalRevenue)}</p>
+
+        <h3>Por medicina</h3>
+        <table border="1" cellspacing="0" cellpadding="6" style="border-collapse: collapse; width: 100%;">
+          <tr style="background:#0F3A34; color:#ffffff;">
+            <th>Medicina</th><th>Unidades</th><th>Precio prom.</th><th>Total</th>
+          </tr>
+          ${medicineRows || "<tr><td colspan='4'>Sin datos</td></tr>"}
+        </table>
+
+        <h3 style="margin-top:24px;">Clientes en este periodo</h3>
+        <table border="1" cellspacing="0" cellpadding="6" style="border-collapse: collapse; width: 100%;">
+          <tr style="background:#0F3A34; color:#ffffff;">
+            <th>Cliente</th><th>Teléfono</th><th>Compras</th><th>Fechas</th><th>Total gastado</th>
+          </tr>
+          ${customerRows || "<tr><td colspan='5'>Sin datos</td></tr>"}
+        </table>
+      </body>
+      </html>
+    `;
+
+    downloadBlob(
+      new Blob(["\ufeff", html], { type: "application/msword" }),
+      `resultados_${periodLabel.replace(/\s+/g, "_")}.doc`
+    );
+  }
+
+  return (
+    <main className="max-w-5xl mx-auto px-5 py-6">
+      <div className="flex items-center justify-between mb-5">
+        <div className="font-semibold flex items-center gap-1.5 text-[15px]">
+          <TrendingUp size={16} /> Resultados de venta
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={exportToExcel}
+            className="flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 rounded-lg border border-[#0F3A34] text-[#0F3A34] hover:bg-white"
+          >
+            <FileSpreadsheet size={13} /> Excel
+          </button>
+          <button
+            onClick={exportToWord}
+            className="flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 rounded-lg border border-[#0F3A34] text-[#0F3A34] hover:bg-white"
+          >
+            <FileText size={13} /> Word
+          </button>
+          <button onClick={onLogout} className="text-[12px] text-[#8A8578] hover:text-[#B3462C]">
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+
+      <div className="border border-[#D8D3C7] rounded-xl bg-white p-4 mb-5">
+        <div className="flex items-center gap-1 bg-[#EDEAE1] rounded-lg p-1 w-fit mb-3">
+          <button
+            onClick={() => setMode("exact")}
+            className={`px-3 py-1.5 text-sm rounded-md ${mode === "exact" ? "bg-white shadow-sm" : "text-[#8A8578]"}`}
+          >
+            Fecha exacta
+          </button>
+          <button
+            onClick={() => setMode("range")}
+            className={`px-3 py-1.5 text-sm rounded-md ${mode === "range" ? "bg-white shadow-sm" : "text-[#8A8578]"}`}
+          >
+            Rango de fechas
+          </button>
+        </div>
+
+        {mode === "exact" ? (
+          <div className="flex items-center gap-2">
+            <Calendar size={15} className="text-[#8A8578]" />
+            <input
+              type="date"
+              value={exactDate}
+              onChange={(e) => setExactDate(e.target.value)}
+              className="px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm"
+            />
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] text-[#8A8578]">Desde</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] text-[#8A8578]">Hasta</span>
+              <input
+                type="date"
+                value={untilPresent ? todayStr() : endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                disabled={untilPresent}
+                className="px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm disabled:opacity-50 disabled:bg-[#F7F6F2]"
+              />
+            </div>
+            <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={untilPresent}
+                onChange={(e) => setUntilPresent(e.target.checked)}
+                className="accent-[#0F3A34]"
+              />
+              Presente (hasta hoy)
+            </label>
+          </div>
+        )}
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-3 mb-6">
+        <div className="border border-[#D8D3C7] rounded-xl bg-white p-4">
+          <div className="text-[12px] text-[#8A8578] mb-1">Unidades vendidas ({periodLabel})</div>
+          <div className="text-2xl font-semibold">{totalUnits}</div>
+        </div>
+        <div className="border border-[#D8D3C7] rounded-xl bg-white p-4">
+          <div className="text-[12px] text-[#8A8578] mb-1">Ingresos totales ({periodLabel})</div>
+          <div className="text-2xl font-semibold">{currency(totalRevenue)}</div>
+        </div>
+      </div>
+
+      {byMedicine.length === 0 ? (
+        <div className="text-sm text-[#8A8578] text-center py-10 border border-[#D8D3C7] rounded-xl bg-white">
+          No hay ventas registradas en este periodo.
+        </div>
+      ) : (
+        <div className="grid lg:grid-cols-2 gap-4">
+          <div className="border border-[#D8D3C7] rounded-xl bg-white p-4">
+            <div className="text-sm font-medium mb-3">Participación de ingresos por medicina</div>
+            {Recharts === null ? (
+              <div className="h-[260px] flex items-center justify-center text-sm text-[#8A8578]">Cargando gráfica...</div>
+            ) : Recharts === false ? (
+              <div className="text-sm text-[#8A8578] space-y-1.5 py-2">
+                {byMedicine.map((m, i) => (
+                  <div key={m.name} className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full inline-block"
+                        style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
+                      />
+                      {m.name}
+                    </span>
+                    <span>{totalRevenue > 0 ? Math.round((m.revenue / totalRevenue) * 100) : 0}%</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ width: "100%", height: 260 }}>
+                <Recharts.ResponsiveContainer>
+                  <Recharts.PieChart>
+                    <Recharts.Pie data={pieData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90} paddingAngle={2}>
+                      {pieData.map((_, i) => (
+                        <Recharts.Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Recharts.Pie>
+                    <Recharts.Tooltip formatter={(v) => currency(v)} />
+                    <Recharts.Legend wrapperStyle={{ fontSize: 12 }} />
+                  </Recharts.PieChart>
+                </Recharts.ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          <div className="border border-[#D8D3C7] rounded-xl bg-white overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[12px] text-[#8A8578] border-b border-[#D8D3C7]">
+                  <th className="px-4 py-2.5 font-medium">Medicina</th>
+                  <th className="px-4 py-2.5 font-medium">Unidades</th>
+                  <th className="px-4 py-2.5 font-medium">Precio prom.</th>
+                  <th className="px-4 py-2.5 font-medium">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {byMedicine.map((m) => (
+                  <tr key={m.name} className="border-b border-[#EDEAE1] last:border-0">
+                    <td className="px-4 py-2.5">{m.name}</td>
+                    <td className="px-4 py-2.5">
+                      {m.quantity} {m.unit}
+                      {m.quantity === 1 ? "" : "s"}
+                    </td>
+                    <td className="px-4 py-2.5">{currency(m.revenue / m.quantity)}</td>
+                    <td className="px-4 py-2.5 font-medium">{currency(m.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {byCustomer.length > 0 && (
+        <div className="border border-[#D8D3C7] rounded-xl bg-white overflow-hidden mt-4">
+          <div className="text-sm font-medium px-4 pt-4 pb-2">Clientes que compraron en este periodo</div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-[12px] text-[#8A8578] border-b border-[#D8D3C7]">
+                <th className="px-4 py-2.5 font-medium">Cliente</th>
+                <th className="px-4 py-2.5 font-medium">Teléfono</th>
+                <th className="px-4 py-2.5 font-medium">Compras</th>
+                <th className="px-4 py-2.5 font-medium">Fechas</th>
+                <th className="px-4 py-2.5 font-medium">Total gastado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {byCustomer.map((c, i) => (
+                <tr key={i} className="border-b border-[#EDEAE1] last:border-0 align-top">
+                  <td className="px-4 py-2.5">{c.name}</td>
+                  <td className="px-4 py-2.5 text-[#8A8578]">{c.phone}</td>
+                  <td className="px-4 py-2.5">{c.dates.length}</td>
+                  <td className="px-4 py-2.5 text-[12px] text-[#8A8578]">
+                    {c.dates
+                      .map((d) => new Date(d).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" }))
+                      .join(" · ")}
+                  </td>
+                  <td className="px-4 py-2.5 font-medium">{currency(c.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </main>
+  );
+}
+
+
+function ImportWordModal({ onClose, onApply }) {
+  const [status, setStatus] = useState("idle"); // idle | loading | preview | error
+  const [parsedItems, setParsedItems] = useState([]);
+  const [errors, setErrors] = useState([]);
+  const [errorMsg, setErrorMsg] = useState("");
+  const inputRef = useRef(null);
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setStatus("loading");
+    try {
+      const { parsed, errors } = await parseInventoryFile(file);
+      if (parsed.length === 0) {
+        setStatus("error");
+        setErrorMsg("No encontramos filas válidas para importar.");
+        return;
+      }
+      setParsedItems(parsed);
+      setErrors(errors);
+      setStatus("preview");
+    } catch (err) {
+      setStatus("error");
+      setErrorMsg(err.message || "No pudimos leer el archivo.");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-[#F7F6F2] rounded-xl max-w-lg w-full p-5 shadow-xl max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <div className="font-semibold flex items-center gap-1.5">
+            <Upload size={15} /> Importar inventario
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-[#EDEAE1] rounded">
+            <X size={16} />
+          </button>
+        </div>
+
+        {status === "idle" && (
+          <>
+            <p className="text-sm text-[#8A8578] mb-3">
+              Sube un archivo Word (.docx) o Excel (.xlsx, .xls, .csv) con una tabla que tenga las columnas
+              Nombre, Unidad, Cantidad y Precio. Si una medicina ya existe (por nombre), se actualiza; si no,
+              se agrega como nueva.
+            </p>
+            <button
+              onClick={() => inputRef.current?.click()}
+              className="w-full py-8 rounded-lg border-2 border-dashed border-[#D8D3C7] text-sm text-[#8A8578] hover:border-[#0F3A34] hover:text-[#0F3A34] flex flex-col items-center gap-2"
+            >
+              <div className="flex items-center gap-2">
+                <FileText size={16} />
+                <FileSpreadsheet size={16} />
+              </div>
+              Toca para elegir un archivo .docx, .xlsx, .xls o .csv
+            </button>
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".docx,.xlsx,.xls,.csv"
+              onChange={handleFile}
+              className="hidden"
+            />
+          </>
+        )}
+
+        {status === "loading" && <div className="text-sm text-[#8A8578] text-center py-10">Leyendo archivo...</div>}
+
+        {status === "error" && (
+          <div>
+            <div className="flex items-start gap-2 bg-[#FBEAE4] border border-[#E8846B] rounded-lg p-3 text-sm text-[#B3462C] mb-3">
+              <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+              <span>{errorMsg}</span>
+            </div>
+            <button
+              onClick={() => setStatus("idle")}
+              className="w-full py-2.5 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27]"
+            >
+              Intentar de nuevo
+            </button>
+          </div>
+        )}
+
+        {status === "preview" && (
+          <div>
+            <p className="text-sm mb-2">
+              Encontramos <strong>{parsedItems.length}</strong> medicina(s) listas para importar.
+            </p>
+            {errors.length > 0 && (
+              <div className="flex items-start gap-2 bg-[#FBEAE4] border border-[#E8846B] rounded-lg p-3 text-[12px] text-[#B3462C] mb-3">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                <div>{errors.join(" ")}</div>
+              </div>
+            )}
+            <div className="border border-[#D8D3C7] rounded-lg overflow-hidden mb-4 max-h-64 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] text-[#8A8578] bg-white border-b border-[#D8D3C7]">
+                    <th className="px-3 py-2 font-medium">Nombre</th>
+                    <th className="px-3 py-2 font-medium">Unidad</th>
+                    <th className="px-3 py-2 font-medium">Cantidad</th>
+                    <th className="px-3 py-2 font-medium">Precio</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedItems.map((p, i) => (
+                    <tr key={i} className="border-b border-[#EDEAE1] last:border-0 bg-white">
+                      <td className="px-3 py-1.5">{p.name}</td>
+                      <td className="px-3 py-1.5 capitalize text-[#8A8578]">{p.unit}</td>
+                      <td className="px-3 py-1.5">{p.quantity}</td>
+                      <td className="px-3 py-1.5">{currency(p.price)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStatus("idle")}
+                className="flex-1 py-2.5 rounded-lg border border-[#D8D3C7] text-sm hover:bg-white"
+              >
+                Elegir otro archivo
+              </button>
+              <button
+                onClick={() => onApply(parsedItems)}
+                className="flex-1 py-2.5 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27]"
+              >
+                Aplicar al inventario
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
