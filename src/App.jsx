@@ -1061,6 +1061,7 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState("");
+  const [company, setCompany] = useState("");
   const [streetAddress, setStreetAddress] = useState("");
   const [cp, setCp] = useState("");
   const [colonia, setColonia] = useState("");
@@ -1086,6 +1087,7 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
       setName(profile.name || "");
       setEmail(profile.email || "");
       setPhone(profile.phone || "");
+      setCompany(profile.company || "");
       setStreetAddress(profile.streetAddress || profile.address || "");
       setCp(profile.cp || "");
       setColonia(profile.colonia || "");
@@ -1217,7 +1219,7 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
     if (!canSubmit) return;
     const fullAddress = `${streetAddress}, ${colonia}, ${municipio}, ${estado}, CP ${cp}`;
     onConfirm(
-      { name, email, phone, address: fullAddress, streetAddress, cp, colonia, estado, municipio, lat, lng },
+      { name, email, phone, company, address: fullAddress, streetAddress, cp, colonia, estado, municipio, lat, lng },
       saveProfile
     );
   }
@@ -1247,6 +1249,15 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
             onChange={(e) => setName(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
             placeholder="Tu nombre"
+          />
+        </div>
+        <div>
+          <label className="text-[12px] text-[#8A8578] block mb-1">Empresa (opcional)</label>
+          <input
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+            placeholder="Nombre de tu empresa"
           />
         </div>
         <div>
@@ -1494,6 +1505,7 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
     </main>
   );
 }
+
 function MapPickerModal({ onClose, onConfirm }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
