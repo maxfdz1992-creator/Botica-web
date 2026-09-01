@@ -1276,49 +1276,28 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
           </div>
         </div>
 
-        <div className="relative">
-          <label className="text-[12px] text-[#8A8578] block mb-1">Dirección y número</label>
-          <input
-            value={streetAddress}
-            onChange={(e) => {
-              setStreetAddress(e.target.value);
-              setShowStreetSuggestions(true);
-            }}
-            onFocus={() => setShowStreetSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowStreetSuggestions(false), 150)}
-            className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
-            placeholder="Calle y número"
-          />
-          {showStreetSuggestions && streetSuggestions.length > 0 && (
-            <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#D8D3C7] rounded-lg shadow-lg max-h-52 overflow-y-auto">
-              {streetSuggestions.map((s, i) => (
-                <button
-                  key={`${s.street}-${i}`}
-                  type="button"
-                  onClick={() => pickStreetSuggestion(s)}
-                  className="block w-full text-left px-3 py-2 text-sm hover:bg-[#F7F6F2] border-b border-[#EDEAE1] last:border-0"
-                >
-                  {s.street}
-                  {s.neighbourhood ? <span className="text-[#8A8578]"> — {s.neighbourhood}</span> : null}
-                </button>
-              ))}
-            </div>
-          )}
-          <p className="text-[10px] text-[#8A8578] mt-1">
-            Sugerencias de OpenStreetMap — revisa que el número esté correcto, no siempre viene incluido.
-          </p>
+        <div className="border border-[#D8D3C7] rounded-lg bg-[#F7F6F2] p-3">
           <button
             type="button"
             onClick={() => setShowMapPicker(true)}
-            className="text-[12px] text-[#0F3A34] underline mt-1"
+            className="w-full py-2 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27]"
           >
-            ¿No encuentras tu dirección? Márcala en un mapa
+            📍 Marcar mi ubicación en un mapa
           </button>
+          <p className="text-[11px] text-[#8A8578] mt-1.5">
+            La forma más rápida y precisa — llena Código postal, Colonia, Municipio y Estado automáticamente.
+          </p>
           {lat && lng && (
-            <p className="text-[11px] text-[#8A8578] mt-1 flex items-center gap-1">
-              <Check size={11} className="text-[#0F3A34]" /> Ubicación marcada en el mapa
+            <p className="text-[11px] text-[#0F3A34] mt-1 flex items-center gap-1">
+              <Check size={11} /> Ubicación marcada en el mapa
             </p>
           )}
+        </div>
+
+        <div className="flex items-center gap-2 text-[11px] text-[#8A8578]">
+          <div className="h-px flex-1 bg-[#EDEAE1]" />
+          o llena los datos a mano
+          <div className="h-px flex-1 bg-[#EDEAE1]" />
         </div>
 
         <div className="relative">
@@ -1364,6 +1343,39 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
               ))}
             </div>
           )}
+        </div>
+
+        <div className="relative">
+          <label className="text-[12px] text-[#8A8578] block mb-1">Dirección y número</label>
+          <input
+            value={streetAddress}
+            onChange={(e) => {
+              setStreetAddress(e.target.value);
+              setShowStreetSuggestions(true);
+            }}
+            onFocus={() => setShowStreetSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowStreetSuggestions(false), 150)}
+            className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+            placeholder="Calle y número"
+          />
+          {showStreetSuggestions && streetSuggestions.length > 0 && (
+            <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#D8D3C7] rounded-lg shadow-lg max-h-52 overflow-y-auto">
+              {streetSuggestions.map((s, i) => (
+                <button
+                  key={`${s.street}-${i}`}
+                  type="button"
+                  onClick={() => pickStreetSuggestion(s)}
+                  className="block w-full text-left px-3 py-2 text-sm hover:bg-[#F7F6F2] border-b border-[#EDEAE1] last:border-0"
+                >
+                  {s.street}
+                  {s.neighbourhood ? <span className="text-[#8A8578]"> — {s.neighbourhood}</span> : null}
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="text-[10px] text-[#8A8578] mt-1">
+            Sugerencias de OpenStreetMap — revisa que el número esté correcto, no siempre viene incluido.
+          </p>
         </div>
 
         <div>
