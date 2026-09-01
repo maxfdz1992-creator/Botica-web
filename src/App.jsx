@@ -1494,7 +1494,6 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
     </main>
   );
 }
-
 function MapPickerModal({ onClose, onConfirm }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
@@ -1921,6 +1920,7 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <div className="font-medium text-sm">{o.buyer.name}</div>
+                    {o.buyer.company && <div className="text-[12px] text-[#8A8578]">{o.buyer.company}</div>}
                     {o.buyer.email && <div className="text-[12px] text-[#8A8578]">{o.buyer.email}</div>}
                     <div className="text-[12px] text-[#8A8578]">{o.buyer.phone}</div>
                     <div className="text-[12px] text-[#8A8578] flex items-center gap-1 mt-0.5">
