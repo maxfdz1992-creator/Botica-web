@@ -198,6 +198,7 @@ export default function BoticaApp() {
   const [orders, setOrders, ordersReady] = useSharedList("pedidos");
   const [adminEmails, setAdminEmails, adminEmailsReady] = useSharedList("admin_emails");
   const [adminPhones, setAdminPhones, adminPhonesReady] = useSharedList("admin_phones");
+  const [maintenanceMode, setMaintenanceMode, maintenanceReady] = useSharedList("maintenance_mode");
   const [profile, saveProfile, profileReady] = useProfile();
 
   function handleProtectedClick(targetView) {
@@ -220,6 +221,9 @@ export default function BoticaApp() {
   useEffect(() => {
     if (adminPhonesReady && adminPhones === null) setAdminPhones([]);
   }, [adminPhonesReady, adminPhones]);
+  useEffect(() => {
+    if (maintenanceReady && maintenanceMode === null) setMaintenanceMode(false);
+  }, [maintenanceReady, maintenanceMode]);
 
   const [pendingToken, setPendingToken] = useState(() => {
     try {
@@ -461,6 +465,41 @@ export default function BoticaApp() {
     );
   }
 
+  if (maintenanceMode && !adminUnlocked) {
+    return (
+      <>
+        <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center px-5 text-center">
+          <div className="max-w-xs">
+            <div className="w-12 h-12 rounded-full bg-[#0F3A34] text-white flex items-center justify-center mx-auto mb-4">
+              <Lock size={20} />
+            </div>
+            <div className="font-semibold text-[16px] mb-2">Aplicación en mantenimiento</div>
+            <p className="text-sm text-[#8A8578] mb-6">Regresa en 15 minutos.</p>
+            <button
+              onClick={() => {
+                setPendingView("admin");
+                setShowPasswordGate(true);
+              }}
+              className="text-[11px] text-[#8A8578] underline"
+            >
+              Acceso administrador
+            </button>
+          </div>
+        </div>
+        {showPasswordGate && (
+          <PasswordGate
+            onClose={() => setShowPasswordGate(false)}
+            onSuccess={() => {
+              setAdminUnlocked(true);
+              setShowPasswordGate(false);
+              setView(pendingView || "admin");
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F7F6F2] text-[#1E2321] font-sans">
       <header className="sticky top-0 z-30 border-b border-[#D8D3C7] bg-[#0F3A34] text-[#F7F6F2]">
@@ -570,6 +609,8 @@ export default function BoticaApp() {
           orders={orders || []}
           adminEmails={adminEmails || []}
           setAdminEmails={setAdminEmails}
+          maintenanceMode={!!maintenanceMode}
+          setMaintenanceMode={setMaintenanceMode}
           onLogout={() => {
             setAdminUnlocked(false);
             setView("comprador");
@@ -1642,7 +1683,7 @@ function OrderConfirmed({ order, onClose }) {
   );
 }
 
-function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory, orders, adminEmails, setAdminEmails, onLogout }) {
+function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory, orders, adminEmails, setAdminEmails, maintenanceMode, setMaintenanceMode, onLogout }) {
   const [tab, setTab] = useState("inventario");
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState({});
@@ -1650,6 +1691,7 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
   const [importOpen, setImportOpen] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showMaintenanceConfirm, setShowMaintenanceConfirm] = useState(false);
 
   function clearInventory() {
     setInventory([]);
@@ -1751,6 +1793,16 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
               </button>
             </>
           )}
+          <button
+            onClick={() => setShowMaintenanceConfirm(true)}
+            className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border ${
+              maintenanceMode
+                ? "border-[#B3462C] text-[#B3462C] bg-[#FBEAE4]"
+                : "border-[#0F3A34] text-[#0F3A34]"
+            }`}
+          >
+            <Lock size={14} /> Mantenimiento: {maintenanceMode ? "Encendido" : "Apagado"}
+          </button>
           <button onClick={onLogout} className="text-[12px] text-[#8A8578] hover:text-[#B3462C]">
             Cerrar sesión
           </button>
@@ -1995,7 +2047,44 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
         </div>
       </div>
     )}
+
+    {showMaintenanceConfirm && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="absolute inset-0 bg-black/40" onClick={() => setShowMaintenanceConfirm(false)} />
+        <div className="relative bg-[#F7F6F2] rounded-xl max-w-xs w-full p-5 shadow-xl">
+          <div className="flex items-center gap-2 mb-3 text-[#0F3A34]">
+            <Lock size={18} />
+            <div className="font-semibold">
+              {maintenanceMode ? "Reactivar la aplicación" : "Activar modo mantenimiento"}
+            </div>
+          </div>
+          <p className="text-sm text-[#1E2321] mb-4">
+            {maintenanceMode
+              ? "Los clientes podrán volver a usar la app normalmente."
+              : "Los clientes verán un mensaje de mantenimiento y no podrán navegar el inventario ni levantar pedidos hasta que lo desactives."}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowMaintenanceConfirm(false)}
+              className="flex-1 py-2 rounded-lg border border-[#D8D3C7] text-sm hover:bg-white"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => {
+                setMaintenanceMode(!maintenanceMode);
+                setShowMaintenanceConfirm(false);
+              }}
+              className="flex-1 py-2 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27]"
+            >
+              {maintenanceMode ? "Sí, reactivar" : "Sí, activar"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
+
   );
 }
 
