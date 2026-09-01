@@ -1776,7 +1776,7 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
             <Mail size={14} /> Correos
           </button>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {tab === "inventario" && (
             <>
               <button
@@ -1795,15 +1795,15 @@ function AdminView({ list, fullList, allLoaded, search, setSearch, setInventory,
           )}
           <button
             onClick={() => setShowMaintenanceConfirm(true)}
-            className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border ${
+            className={`flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 rounded-lg border whitespace-nowrap ${
               maintenanceMode
                 ? "border-[#B3462C] text-[#B3462C] bg-[#FBEAE4]"
                 : "border-[#0F3A34] text-[#0F3A34]"
             }`}
           >
-            <Lock size={14} /> Mantenimiento: {maintenanceMode ? "Encendido" : "Apagado"}
+            <Lock size={13} /> {maintenanceMode ? "Mant.: Encendido" : "Mant.: Apagado"}
           </button>
-          <button onClick={onLogout} className="text-[12px] text-[#8A8578] hover:text-[#B3462C]">
+          <button onClick={onLogout} className="text-[12px] text-[#8A8578] hover:text-[#B3462C] whitespace-nowrap">
             Cerrar sesión
           </button>
         </div>
