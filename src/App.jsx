@@ -618,3 +618,623 @@ export default function BoticaApp() {
   );
 }
 
+function PasswordGate({ onClose, onSuccess }) {
+  const [value, setValue] = useState("");
+  const [error, setError] = useState(false);
+
+  function submit() {
+    if (value === ADMIN_PASSWORD) onSuccess();
+    else setError(true);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-[#F7F6F2] rounded-xl max-w-xs w-full p-5 shadow-xl">
+        <div className="flex items-center justify-between mb-3">
+          <div className="font-semibold flex items-center gap-1.5">
+            <Lock size={15} /> Acceso administrador
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-[#EDEAE1] rounded">
+            <X size={16} />
+          </button>
+        </div>
+        <input
+          type="password"
+          autoFocus
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError(false);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+          placeholder="Contraseña"
+          className={`w-full px-3 py-2 rounded-lg border text-sm mb-1 focus:outline-none focus:ring-2 ${
+            error ? "border-[#B3462C] focus:ring-[#B3462C]/30" : "border-[#D8D3C7] focus:ring-[#0F3A34]/30"
+          }`}
+        />
+        {error && <div className="text-[12px] text-[#B3462C] mb-2">Contraseña incorrecta.</div>}
+        <button
+          onClick={submit}
+          className="w-full mt-2 py-2.5 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27]"
+        >
+          Entrar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SentScreen({ email, onClose, onCheckNow }) {
+  const [checking, setChecking] = useState(false);
+  const [notYet, setNotYet] = useState(false);
+
+  async function handleCheckNow() {
+    setChecking(true);
+    setNotYet(false);
+    try {
+      const confirmed = await onCheckNow?.();
+      if (!confirmed) setNotYet(true);
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-[#F7F6F2] rounded-xl max-w-xs w-full p-5 shadow-xl">
+        <div className="flex items-center justify-between mb-3">
+          <div className="font-semibold flex items-center gap-1.5">
+            <Mail size={15} /> Revisa tu correo
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-[#EDEAE1] rounded">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="border border-[#D8D3C7] rounded-lg bg-white p-4 mb-3 text-sm">
+          Te mandamos un correo a <strong>{email}</strong> con un botón para confirmar. Tócalo desde tu
+          correo — normalmente esta app detecta la confirmación sola.
+        </div>
+        <button
+          onClick={handleCheckNow}
+          disabled={checking}
+          className="w-full py-2.5 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27] disabled:opacity-50 mb-2"
+        >
+          {checking ? "Revisando..." : "Ya confirmé, revisar ahora"}
+        </button>
+        {notYet && (
+          <p className="text-[12px] text-[#B3462C] mb-2">
+            Todavía no vemos la confirmación. Si ya tocaste el botón del correo, espera unos segundos y
+            vuelve a intentar.
+          </p>
+        )}
+        <p className="text-[11px] text-[#8A8578]">Si no lo ves en unos minutos, revisa la carpeta de spam.</p>
+      </div>
+    </div>
+  );
+}
+
+function ProfileModal({ profile, profileReady, onClose, onSave, onLogout, onVerificationSent, onCheckNow }) {
+  const [step, setStep] = useState("form"); // form | sending | sent | error
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [prefilled, setPrefilled] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    if (profileReady && profile && !prefilled) {
+      setName(profile.name || "");
+      setEmail(profile.email || "");
+      setPrefilled(true);
+    }
+  }, [profileReady, profile, prefilled]);
+
+  const canSave = name.trim() && email.trim();
+  const isLoggedIn = profileReady && profile?.emailVerified && !editing;
+
+  async function sendConfirmationEmail() {
+    setStep("sending");
+    setErrorMsg("");
+    try {
+      const token =
+        crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+      const { error: insertError } = await supabase
+        .from("email_verifications")
+        .insert({ token, name: name.trim(), email: email.trim().toLowerCase() });
+      if (insertError) throw insertError;
+
+      const response = await fetch("/api/send-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          token,
+          appUrl: window.location.origin,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || "No se pudo enviar el correo");
+      if (data?.skipped) throw new Error(data.reason || "El envío de correos no está configurado");
+
+      try {
+        localStorage.setItem(
+          "botica:pending-verification",
+          JSON.stringify({ token, name: name.trim(), email: email.trim().toLowerCase() })
+        );
+      } catch {
+        // si no se puede guardar, la confirmación seguirá funcionando si se
+        // abre el correo desde el mismo navegador/pestaña
+      }
+      onVerificationSent?.(token);
+
+      setStep("sent");
+    } catch (err) {
+      setErrorMsg(err.message || "Algo salió mal enviando el correo");
+      setStep("error");
+    }
+  }
+
+  if (isLoggedIn) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+        <div className="relative bg-[#F7F6F2] rounded-xl max-w-xs w-full p-5 shadow-xl">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-semibold flex items-center gap-1.5">
+              <User size={15} /> Mi perfil
+            </div>
+            <button onClick={onClose} className="p-1 hover:bg-[#EDEAE1] rounded">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="border border-[#D8D3C7] rounded-lg bg-white p-4 mb-3">
+            <div className="text-[11px] text-[#8A8578] mb-1">Sesión iniciada como</div>
+            <div className="text-sm font-medium">{profile.name}</div>
+            <div className="text-[12px] text-[#8A8578]">{profile.email}</div>
+          </div>
+          <p className="text-[12px] text-[#8A8578] mb-4">
+            Tus próximas compras ya usan estos datos automáticamente.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setEditing(true)}
+              className="flex-1 py-2 rounded-lg border border-[#D8D3C7] text-sm hover:bg-white"
+            >
+              Editar
+            </button>
+            <button
+              onClick={onLogout}
+              className="flex-1 py-2 rounded-lg border border-[#D8D3C7] text-sm text-[#B3462C] hover:bg-white"
+            >
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "sent") {
+    return (
+      <SentScreen email={email} onClose={onClose} onCheckNow={onCheckNow} />
+    );
+  }
+
+  if (step === "error") {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+        <div className="relative bg-[#F7F6F2] rounded-xl max-w-xs w-full p-5 shadow-xl">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-semibold flex items-center gap-1.5 text-[#B3462C]">
+              <AlertTriangle size={15} /> No se pudo enviar
+            </div>
+            <button onClick={onClose} className="p-1 hover:bg-[#EDEAE1] rounded">
+              <X size={16} />
+            </button>
+          </div>
+          <p className="text-sm text-[#1E2321] mb-4">{errorMsg}</p>
+          <button
+            onClick={() => setStep("form")}
+            className="w-full py-2.5 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27]"
+          >
+            Volver a intentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-[#F7F6F2] rounded-xl max-w-xs w-full p-5 shadow-xl">
+        <div className="flex items-center justify-between mb-3">
+          <div className="font-semibold flex items-center gap-1.5">
+            <User size={15} /> Mi perfil
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-[#EDEAE1] rounded">
+            <X size={16} />
+          </button>
+        </div>
+        <p className="text-[12px] text-[#8A8578] mb-3">
+          Guarda tu nombre y correo para que tus próximas compras se llenen más rápido.
+        </p>
+        <div className="space-y-3">
+          <div>
+            <label className="text-[12px] text-[#8A8578] block mb-1">Nombre</label>
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Tu nombre"
+              className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+            />
+          </div>
+          <div>
+            <label className="text-[12px] text-[#8A8578] block mb-1">Correo electrónico</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="tu@correo.com"
+              className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
+            />
+          </div>
+        </div>
+        <button
+          onClick={() => canSave && sendConfirmationEmail()}
+          disabled={!canSave || step === "sending"}
+          className="w-full mt-4 py-2.5 rounded-lg bg-[#0F3A34] text-white text-sm font-medium hover:bg-[#0B2C27] disabled:opacity-40"
+        >
+          {step === "sending" ? "Enviando..." : "Guardar"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SearchBar({ search, setSearch, placeholder }) {
+  return (
+    <div className="relative">
+      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A8578]" />
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={placeholder}
+        className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-[#D8D3C7] bg-white text-sm placeholder-[#8A8578] focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30 focus:border-[#0F3A34]"
+      />
+    </div>
+  );
+}
+
+function BuyerView({ list, allLoaded, search, setSearch, cart, addToCart, removeFromCart }) {
+  return (
+    <main className="max-w-5xl mx-auto px-5 py-6 pb-28">
+      <div className="mb-5">
+        <SearchBar search={search} setSearch={setSearch} placeholder="Buscar medicina por nombre..." />
+      </div>
+
+      {!allLoaded ? (
+        <div className="text-sm text-[#8A8578] py-10 text-center">Cargando inventario...</div>
+      ) : list.length === 0 ? (
+        <div className="text-sm text-[#8A8578] py-10 text-center">No encontramos medicinas con ese nombre.</div>
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-3">
+          {list.map((p) => {
+            const inCart = cart[p.id] || 0;
+            const outOfStock = p.quantity <= 0;
+            return (
+              <div key={p.id} className="border border-[#D8D3C7] rounded-xl bg-white p-4 flex flex-col gap-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-medium text-[15px]">{p.name}</div>
+                    <div className="text-[12px] text-[#8A8578] capitalize">por {p.unit}</div>
+                  </div>
+                  <div className="text-[15px] font-semibold text-[#0F3A34]">{currency(p.price)}</div>
+                </div>
+                <div className="text-[12px] text-[#8A8578]">
+                  {outOfStock ? (
+                    <span className="text-[#B3462C]">Sin existencias</span>
+                  ) : (
+                    `${p.quantity} ${p.unit}${p.quantity === 1 ? "" : "s"} disponibles`
+                  )}
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  {outOfStock ? (
+                    <span className="text-sm text-[#8A8578]">No disponible</span>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => addToCart(p, -1)}
+                        disabled={inCart <= 0}
+                        className="w-7 h-7 rounded-md border border-[#D8D3C7] flex items-center justify-center hover:bg-[#F7F6F2] disabled:opacity-30"
+                      >
+                        <Minus size={14} />
+                      </button>
+                      <span className="text-sm w-5 text-center">{inCart}</span>
+                      <button
+                        onClick={() => addToCart(p, 1)}
+                        disabled={inCart >= p.quantity}
+                        className="w-7 h-7 rounded-md border border-[#D8D3C7] flex items-center justify-center hover:bg-[#F7F6F2] disabled:opacity-30"
+                      >
+                        <Plus size={14} />
+                      </button>
+                      <button
+                        onClick={() => removeFromCart(p)}
+                        disabled={inCart <= 0}
+                        className="w-7 h-7 rounded-md border border-[#D8D3C7] flex items-center justify-center hover:bg-[#FBEAE4] text-[#B3462C] disabled:opacity-30 disabled:hover:bg-transparent"
+                        title="Cancelar selección"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </main>
+  );
+}
+
+function CartView({ items, total, onChangeQty, onRemove, onBackToShop, onCheckout }) {
+  return (
+    <main className="max-w-3xl mx-auto px-5 py-6 pb-28">
+      <div className="flex items-center justify-between mb-5">
+        <div className="font-semibold flex items-center gap-1.5 text-[15px]">
+          <ShoppingCart size={16} /> Tu carrito
+        </div>
+        <button onClick={onBackToShop} className="text-sm text-[#0F3A34] hover:underline flex items-center gap-1">
+          <ArrowLeft size={14} /> Seguir comprando
+        </button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="text-sm text-[#8A8578] text-center py-16 border border-[#D8D3C7] rounded-xl bg-white">
+          Aún no agregas medicinas. Ve a la pestaña Inventario para empezar.
+        </div>
+      ) : (
+        <div className="space-y-3 mb-6">
+          {items.map((i) => (
+            <div key={i.id} className="flex items-center justify-between bg-white border border-[#D8D3C7] rounded-xl p-4">
+              <div>
+                <div className="text-sm font-medium">{i.name}</div>
+                <div className="text-[12px] text-[#8A8578] capitalize">
+                  {i.qty} {i.unit}
+                  {i.qty === 1 ? "" : "s"} x {currency(i.price)}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => onChangeQty(i, -1)}
+                  className="w-7 h-7 rounded-md border border-[#D8D3C7] flex items-center justify-center hover:bg-[#F7F6F2]"
+                >
+                  <Minus size={14} />
+                </button>
+                <span className="text-sm w-5 text-center">{i.qty}</span>
+                <button
+                  onClick={() => onChangeQty(i, 1)}
+                  disabled={i.qty >= i.quantity}
+                  className="w-7 h-7 rounded-md border border-[#D8D3C7] flex items-center justify-center hover:bg-[#F7F6F2] disabled:opacity-30"
+                >
+                  <Plus size={14} />
+                </button>
+                <button
+                  onClick={() => onRemove(i)}
+                  className="w-7 h-7 rounded-md border border-[#D8D3C7] flex items-center justify-center hover:bg-[#FBEAE4] text-[#B3462C]"
+                  title="Cancelar selección"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="border border-[#D8D3C7] rounded-xl bg-white p-4 sticky bottom-4">
+        <div className="flex items-center justify-between mb-3 text-sm">
+          <span className="text-[#8A8578]">Total</span>
+          <span className="font-semibold text-[18px]">{currency(total)}</span>
+        </div>
+        <button
+          onClick={onCheckout}
+          disabled={items.length === 0}
+          className="w-full py-2.5 rounded-lg bg-[#E8846B] text-[#0F3A34] font-medium text-sm hover:bg-[#DD7357] disabled:opacity-40"
+        >
+          Levantar pedido
+        </button>
+      </div>
+    </main>
+  );
+}
+
+function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [streetAddress, setStreetAddress] = useState("");
+  const [cp, setCp] = useState("");
+  const [colonia, setColonia] = useState("");
+  const [estado, setEstado] = useState("");
+  const [municipio, setMunicipio] = useState("");
+  const [saveProfile, setSaveProfile] = useState(false);
+  const [prefilled, setPrefilled] = useState(false);
+
+  const [cpSuggestions, setCpSuggestions] = useState([]);
+  const [coloniaOptions, setColoniaOptions] = useState([]);
+  const [municipioOptions, setMunicipioOptions] = useState([]);
+  const [estadoOptions, setEstadoOptions] = useState([]);
+  const [cpStatus, setCpStatus] = useState("idle"); // idle | checking | verified | notfound
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [streetSuggestions, setStreetSuggestions] = useState([]);
+  const [showStreetSuggestions, setShowStreetSuggestions] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [lat, setLat] = useState(null);
+  const [lng, setLng] = useState(null);
+
+  useEffect(() => {
+    if (profileReady && profile && !prefilled) {
+      setName(profile.name || "");
+      setEmail(profile.email || "");
+      setPhone(profile.phone || "");
+      setStreetAddress(profile.streetAddress || profile.address || "");
+      setCp(profile.cp || "");
+      setColonia(profile.colonia || "");
+      setEstado(profile.estado || "");
+      setMunicipio(profile.municipio || "");
+      if (profile.cp && profile.colonia) {
+        setColoniaOptions([profile.colonia]);
+        if (profile.municipio) setMunicipioOptions([profile.municipio]);
+        if (profile.estado) setEstadoOptions([profile.estado]);
+        setCpStatus("verified");
+      }
+      setPrefilled(true);
+    }
+  }, [profileReady, profile, prefilled]);
+
+  // Busca coincidencias de código postal mientras se escribe.
+  useEffect(() => {
+    const digits = cp.replace(/\D/g, "").slice(0, 5);
+    if (digits.length < 2) {
+      setCpSuggestions([]);
+      return;
+    }
+    setCpStatus("checking");
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/postal-code?q=${digits}`);
+        const data = await res.json();
+        const results = data.results || [];
+        setCpSuggestions(results);
+        if (digits.length === 5) {
+          const exact = results.filter((r) => r.cp === digits);
+          if (exact.length > 0) {
+            applyCpMatch(digits, exact);
+          } else {
+            setCpStatus("notfound");
+          }
+        } else {
+          setCpStatus("idle");
+        }
+      } catch {
+        setCpStatus("idle");
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cp]);
+
+  function applyCpMatch(cpValue, records) {
+    const uniqueColonias = [...new Set(records.map((r) => r.colonia).filter(Boolean))];
+    const uniqueMunicipios = [...new Set(records.map((r) => r.municipio).filter(Boolean))];
+    const uniqueEstados = [...new Set(records.map((r) => r.estado).filter(Boolean))];
+    setColoniaOptions(uniqueColonias);
+    setMunicipioOptions(uniqueMunicipios);
+    setEstadoOptions(uniqueEstados);
+    setColonia((prev) => (uniqueColonias.includes(prev) ? prev : uniqueColonias[0] || ""));
+    setMunicipio((prev) => (uniqueMunicipios.includes(prev) ? prev : uniqueMunicipios[0] || ""));
+    setEstado((prev) => (uniqueEstados.includes(prev) ? prev : uniqueEstados[0] || ""));
+    setCpStatus("verified");
+    setShowSuggestions(false);
+  }
+
+  async function pickSuggestion(cpValue) {
+    setCp(cpValue);
+    setShowSuggestions(false);
+    try {
+      const res = await fetch(`/api/postal-code?q=${cpValue}`);
+      const data = await res.json();
+      const results = (data.results || []).filter((r) => r.cp === cpValue);
+      if (results.length > 0) applyCpMatch(cpValue, results);
+    } catch {
+      // si falla, el usuario puede seguir llenando los campos a mano
+    }
+  }
+
+  const uniqueCpList = useMemo(() => {
+    const seen = new Set();
+    const list = [];
+    for (const r of cpSuggestions) {
+      if (!seen.has(r.cp)) {
+        seen.add(r.cp);
+        list.push(r);
+      }
+    }
+    return list.slice(0, 8);
+  }, [cpSuggestions]);
+
+  // Sugerencias de calle (OpenStreetMap) — apoyo, no verificación oficial.
+  useEffect(() => {
+    if (streetAddress.trim().length < 3) {
+      setStreetSuggestions([]);
+      return;
+    }
+    const context = [colonia, municipio, estado].filter(Boolean).join(", ");
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/street-suggest?q=${encodeURIComponent(streetAddress)}&context=${encodeURIComponent(context)}`
+        );
+        const data = await res.json();
+        setStreetSuggestions(data.results || []);
+      } catch {
+        setStreetSuggestions([]);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streetAddress, colonia, municipio, estado]);
+
+  function pickStreetSuggestion(s) {
+    setStreetAddress(s.houseNumber ? `${s.street} ${s.houseNumber}` : s.street);
+    setShowStreetSuggestions(false);
+  }
+
+  function handleMapConfirm(addr, pickedLat, pickedLng) {
+    setShowMapPicker(false);
+    setLat(pickedLat);
+    setLng(pickedLng);
+    if (addr.street) setStreetAddress(`${addr.street}${addr.houseNumber ? " " + addr.houseNumber : ""}`.trim());
+    if (addr.colonia) setColonia(addr.colonia);
+    if (addr.municipio) setMunicipio(addr.municipio);
+    if (addr.estado) setEstado(addr.estado);
+    if (addr.cp) setCp(addr.cp); // esto dispara la verificación oficial del CP sola
+  }
+
+  const canSubmit =
+    name.trim() && phone.trim() && streetAddress.trim() && cp.length === 5 && colonia.trim() && estado.trim() && municipio.trim();
+
+  function handlePlaceOrder() {
+    if (!canSubmit) return;
+    const fullAddress = `${streetAddress}, ${colonia}, ${municipio}, ${estado}, CP ${cp}`;
+    onConfirm(
+      { name, email, phone, address: fullAddress, streetAddress, cp, colonia, estado, municipio, lat, lng },
+      saveProfile
+    );
+  }
+
+  return (
+    <main className="max-w-md mx-auto px-5 py-6 pb-28">
+      <div className="flex items-center justify-between mb-5">
+        <div className="font-semibold text-[15px]">Datos de entrega</div>
+        <button onClick={onBack} className="text-sm text-[#0F3A34] hover:underline flex items-center gap-1">
+          <ArrowLeft size={14} /> Volver al carrito
+        </button>
+      </div>
+
+      {profileReady && profile && (
+        <div className="flex items-center gap-2 bg-white border border-[#D8D3C7] rounded-lg p-3 mb-4 text-[12px] text-[#8A8578]">
+          <User size={14} className="text-[#0F3A34]" />
+          Usamos tus datos guardados de {profile.name}. Puedes editarlos abajo si es necesario.
+        </div>
+      )}
+
+      <div className="border border-[#D8D3C7] rounded-xl bg-white p-4 space-y-3 mb-4">
