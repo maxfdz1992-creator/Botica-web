@@ -1060,6 +1060,7 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [streetAddress, setStreetAddress] = useState("");
   const [cp, setCp] = useState("");
   const [colonia, setColonia] = useState("");
@@ -1210,7 +1211,7 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
   }
 
   const canSubmit =
-    name.trim() && phone.trim() && streetAddress.trim() && cp.length === 5 && colonia.trim() && estado.trim() && municipio.trim();
+    name.trim() && phone.length === 10 && streetAddress.trim() && cp.length === 5 && colonia.trim() && estado.trim() && municipio.trim();
 
   function handlePlaceOrder() {
     if (!canSubmit) return;
@@ -1263,11 +1264,24 @@ function CheckoutView({ total, items, profile, profileReady, onBack, onConfirm }
         <div>
           <label className="text-[12px] text-[#8A8578] block mb-1">Teléfono</label>
           <input
+            inputMode="numeric"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-[#D8D3C7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3A34]/30"
-            placeholder="Número para confirmar el pedido"
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+              setPhone(digits);
+              if (digits.length === 0 || digits.length === 10) setPhoneError("");
+            }}
+            onBlur={() => {
+              if (phone.length > 0 && phone.length !== 10) {
+                setPhoneError("El teléfono debe tener 10 dígitos.");
+              }
+            }}
+            className={`w-full px-3 py-2 rounded-lg border bg-white text-sm focus:outline-none focus:ring-2 ${
+              phoneError ? "border-[#B3462C] focus:ring-[#B3462C]/30" : "border-[#D8D3C7] focus:ring-[#0F3A34]/30"
+            }`}
+            placeholder="10 dígitos, ej. 3221234567"
           />
+          {phoneError && <div className="text-[11px] text-[#B3462C] mt-1">{phoneError}</div>}
         </div>
 
         <div className="pt-1 border-t border-[#EDEAE1]">
