@@ -1,7 +1,7 @@
 // Función de servidor (Vercel Serverless Function). Consulta la base pública
-// de códigos postales de México (Sepomex) y regresa colonia, municipio y
-// estado ya verificados. La usamos como intermediario para evitar problemas
-// de CORS al llamarla directo desde el navegador.
+// de códigos postales de México (Sepomex, instancia comunitaria en
+// sepomex.kurenn.dev) y regresa colonia, municipio y estado ya verificados.
+// La usamos como intermediario para evitar problemas de CORS.
 
 export default async function handler(req, res) {
   const q = (req.query?.q || "").toString().replace(/\D/g, "").slice(0, 5);
@@ -12,7 +12,7 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(
-      `https://sepomex.icalialabs.com/api/v1/zip_codes?zip_code=${encodeURIComponent(q)}`
+      `https://sepomex.kurenn.dev/api/v1/zip_codes?zip_code=${encodeURIComponent(q)}&per_page=50`
     );
 
     if (!response.ok) {
