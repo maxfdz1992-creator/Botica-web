@@ -2342,7 +2342,51 @@ function ResultsView({ orders, onLogout }) {
       )}
 
       {byCustomer.length > 0 && (
-        <div className="border border-[#D8D3C7] rounded-xl bg-white overflow-hidden mt-4">
+        <div className="grid lg:grid-cols-2 gap-4 mt-4">
+          <div className="border border-[#D8D3C7] rounded-xl bg-white p-4">
+            <div className="text-sm font-medium mb-3">Participación de gasto por cliente</div>
+            {Recharts === null ? (
+              <div className="h-[260px] flex items-center justify-center text-sm text-[#8A8578]">Cargando gráfica...</div>
+            ) : Recharts === false ? (
+              <div className="text-sm text-[#8A8578] space-y-1.5 py-2">
+                {byCustomer.map((c, i) => (
+                  <div key={c.name + i} className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full inline-block"
+                        style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
+                      />
+                      {c.name}
+                    </span>
+                    <span>{totalRevenue > 0 ? Math.round((c.total / totalRevenue) * 100) : 0}%</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ width: "100%", height: 260 }}>
+                <Recharts.ResponsiveContainer>
+                  <Recharts.PieChart>
+                    <Recharts.Pie
+                      data={byCustomer.map((c) => ({ name: c.name, value: c.total }))}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={50}
+                      outerRadius={90}
+                      paddingAngle={2}
+                    >
+                      {byCustomer.map((_, i) => (
+                        <Recharts.Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Recharts.Pie>
+                    <Recharts.Tooltip formatter={(v) => currency(v)} />
+                    <Recharts.Legend wrapperStyle={{ fontSize: 12 }} />
+                  </Recharts.PieChart>
+                </Recharts.ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          <div className="border border-[#D8D3C7] rounded-xl bg-white overflow-hidden">
           <div className="text-sm font-medium px-4 pt-4 pb-2">Clientes que compraron en este periodo</div>
           <table className="w-full text-sm">
             <thead>
@@ -2370,6 +2414,7 @@ function ResultsView({ orders, onLogout }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </main>
